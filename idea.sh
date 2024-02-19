@@ -11,6 +11,11 @@ IDEA_VERSION=
 DOCKER_IMAGE_NAME=
 DOCKER_IMAGE_VERSION=
 DOCKER_CONTAINER_NAME=
+
+# DOCKER_CONTAINER_USER=
+DOCKER_CONTAINER_USER=idea
+# DOCKER_CONTAINER_USER=root
+
 PROJECTS_PATH=
 
 DISPLAY_HOST=host.docker.internal
@@ -21,7 +26,9 @@ BASE_DOCKER_IMAGE=bellsoft/liberica-openjdk-centos:21.0.2-14
 DOCKER_CONTAINER_START_OPTION=-d
 # DOCKER_CONTAINER_ADDITIONAL_OPTION=--rm
 
-DEFAULT_IDEA_CODE=IC
+if [ "$DEFAULT_IDEA_CODE" == "" ]; then
+  DEFAULT_IDEA_CODE=IC
+fi
 
 # ############################################################ #
 
@@ -43,14 +50,16 @@ IDEA_CODE="$(awk -vparam1="$1" -viu="IU" -vic="IC" 'BEGIN {
 if [ "$DOCKER_CONTAINER_NAME" == "" ] && [ "$IDEA_CODE" == "" ]; then
   if [ "$(docker ps -a --filter="ancestor=$DOCKER_IMAGE_NAME:$DOCKER_IMAGE_VERSION" --format="table{{.Names}}"|grep -v NAMES|wc -l|xargs)" == "1" ]; then
     DOCKER_CONTAINER_NAME=$(docker ps -a --filter="ancestor=$DOCKER_IMAGE_NAME:$DOCKER_IMAGE_VERSION" --format="table{{.Names}}"|grep -v NAMES|xargs)
-    if [ ! "$DOCKER_CONTAINER_NAME" == "" ]; then
-      echo Found docker container: $DOCKER_CONTAINER_NAME
-      if [ ! "$(docker ps|grep -E "^.*$DOCKER_IMAGE_NAME\:$DOCKER_IMAGE_VERSION\s+.*$DOCKER_CONTAINER_NAME\s*"|wc -l|xargs)" == 0 ]; then
-        echo IDEA Container is already started
-        exit -1;
-      fi;
-    fi;
+  elif [ "$(docker ps -a --filter="ancestor=$DOCKER_IMAGE_NAME:$DOCKER_IMAGE_VERSION" --filter="name=idea-$DEFAULT_IDEA_CODE" --format="table{{.Names}}"|grep -v NAMES|wc -l|xargs)" == "1" ]; then
+    DOCKER_CONTAINER_NAME=$(docker ps -a --filter="ancestor=$DOCKER_IMAGE_NAME:$DOCKER_IMAGE_VERSION" --filter="name=idea-$DEFAULT_IDEA_CODE" --format="table{{.Names}}"|grep -v NAMES|xargs)
   fi
+  if [ ! "$DOCKER_CONTAINER_NAME" == "" ]; then
+    echo Found docker container: $DOCKER_CONTAINER_NAME
+    if [ ! "$(docker ps|grep -E "^.*$DOCKER_IMAGE_NAME\:$DOCKER_IMAGE_VERSION\s+.*$DOCKER_CONTAINER_NAME\s*"|wc -l|xargs)" == 0 ]; then
+      echo IDEA Container is already started
+      exit -1;
+    fi;
+  fi;
 fi
 
 if [ "$IDEA_CODE" == "" ]; then
@@ -70,8 +79,7 @@ if [ ! "$(docker ps --filter="ancestor=$DOCKER_IMAGE_NAME:$DOCKER_IMAGE_VERSION"
 fi
 
 if [ ! "$(docker ps -a|grep -E "^.*$DOCKER_IMAGE_NAME\:$DOCKER_IMAGE_VERSION\s+.*$DOCKER_CONTAINER_NAME\s*"|wc -l|xargs)" == "0" ]; then
-
-  echo start existed container: $DOCKER_CONTAINER_NAME
+  echo Start existed container: $DOCKER_CONTAINER_NAME
   xhost + > /dev/null
   docker start "$DOCKER_CONTAINER_NAME"
 
@@ -137,29 +145,43 @@ else
     echo IDEA home already exists: $IDEA_NAME
   fi
   
-  
+  if [ "$DOCKER_CONTAINER_USER" == "" ]; then
+    DOCKER_CONTAINER_USER=$USER
+  fi
+  if [ "$DOCKER_CONTAINER_USER" == "root" ]; then
+    DOCKER_CONTAINER_USER_HOME='/root'
+  else
+    DOCKER_CONTAINER_USER_HOME="/home/$DOCKER_CONTAINER_USER"        
+  fi
+
+  USRID=$(id -u $USER)
+  GROUPID=$(id -g $USER)
+      
   if [ "$(docker images|grep "^$DOCKER_IMAGE_NAME\s*$DOCKER_IMAGE_VERSION\s.*$"|wc -l|xargs)" == "0" ]; then
     
-    # echo Remmove maven files
-    # rm -rf ./"$MAVEN_NAME" ./"$MAVEN_FILE_NAME"* 2>/dev/null
-    # echo Remove IDEA files
-    # rm -rf ./"$IDEA_NAME" ./"$IDEA_FILE_NAME"* 2> /dev/null
-    
     if [ ! -f "Dockerfile" ]; then
+
       echo FROM $BASE_DOCKER_IMAGE > Dockerfile
       echo USER root >> Dockerfile
-      echo 'RUN yum -y install lksctp-tools xorg-x11-server-Xorg xorg-x11-xauth xorg-x11-apps libXtst \' >> Dockerfile
+      echo 'RUN yum -y install lksctp-tools xorg-x11-server-Xorg xorg-x11-xauth xorg-x11-apps libXtst sudo whoami \' >> Dockerfile
       echo ' && yum clean all \' >> Dockerfile
+      echo ' && usermod -p "" root \' >> Dockerfile
+      if [ ! "$DOCKER_CONTAINER_USER" == "root" ]; then
+        echo " && groupadd -g $GROUPID -f staff \\" >> Dockerfile
+        echo " && useradd -m -d $DOCKER_CONTAINER_USER_HOME -u $USRID -g $GROUPID $DOCKER_CONTAINER_USER \\" >> Dockerfile
+        echo ' && usermod -aG wheel -p "" '$DOCKER_CONTAINER_USER' \' >> Dockerfile
+      fi
       echo ' && ln -s /opt/maven/bin/mvn /usr/bin/mvn \' >> Dockerfile
       echo ' && ln -s /opt/idea/bin/idea.sh /usr/bin/idea' >> Dockerfile
-      echo ENV M2_HOME /root/.m2 >> Dockerfile
+      echo USER $DOCKER_CONTAINER_USER >> Dockerfile
+      echo "ENV M2_HOME $DOCKER_CONTAINER_USER_HOME/.m2" >> Dockerfile
       echo ENV MAVEN_HOME /opt/apache-maven >> Dockerfile
       echo ENV MAVEN_OPTS=-Xms128m >> Dockerfile
       echo ENV LOCALE=en_RU.UTF-8 >> Dockerfile
       echo ENV DISPLAY=$DISPLAY_HOST:$DISPLAY_ID >> Dockerfile
-      echo 'ENV MAVEN_CONFIG="-s /root/.m2/settings.xml"' >> Dockerfile
+      echo "ENV MAVEN_CONFIG=\"-s $DOCKER_CONTAINER_USER_HOME/.m2/settings.xml\"" >> Dockerfile
       echo EXPOSE 80 8080 5005 >> Dockerfile
-      echo WORKDIR /root >> Dockerfile
+      echo "WORKDIR $DOCKER_CONTAINER_USER_HOME" >> Dockerfile
       echo ENTRYPOINT idea >> Dockerfile
       echo Dockerfile has been created
     else
@@ -183,16 +205,17 @@ else
   
   xhost + > /dev/null
 
-  echo run dicker container: $DOCKER_CONTAINER_NAME
+  if [ ! "$DOCKER_CONTAINER_USER" == "root" ]; then
+    USERPARAM=--user \"$USRID:$GROUPID\"
+  fi
+  echo Run docker container: $DOCKER_CONTAINER_NAME
   docker run $DOCKER_CONTAINER_START_OPTION $DOCKER_CONTAINER_ADDITIONAL_OPTION \
     --name $DOCKER_CONTAINER_NAME \
     --mount type=bind,source=/tmp/.X11-unix,target=/tmp/.X11-unix \
-    --mount type=bind,source=$HOME/.m2,target=/root/.m2 \
+    --mount type=bind,source=$HOME/.m2,target=$DOCKER_CONTAINER_USER_HOME/.m2 \
     --mount type=bind,source=./$IDEA_NAME,target=/opt/idea \
     --mount type=bind,source=./$MAVEN_NAME,target=/opt/maven \
-    --mount type=bind,source="$PROJECTS_PATH",target=/root/IdeaProjects \
-    --mount type=bind,source=./docs,target=/root/docs \
-    -w /root  \
-    "$DOCKER_IMAGE_NAME:$DOCKER_IMAGE_VERSION"
-
+    --mount type=bind,source="$PROJECTS_PATH",target=$DOCKER_CONTAINER_USER_HOME/IdeaProjects \
+    --mount type=bind,source=./docs,target=$DOCKER_CONTAINER_USER_HOME/docs \
+    $USERPARAM "$DOCKER_IMAGE_NAME:$DOCKER_IMAGE_VERSION"
 fi
