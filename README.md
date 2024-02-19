@@ -1,4 +1,4 @@
-# idea-trial-sctp
+# Idea in docker X11 (CentOS with SCTP support)
 
 _IntelliJ IDEA start for SCTP development on Linux/Docker_
 
