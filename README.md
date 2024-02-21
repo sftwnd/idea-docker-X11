@@ -2,7 +2,7 @@
 
 _IntelliJ IDEA start for SCTP development on Linux/Docker_
 
-Preinstallation required: [Docker](https://www.docker.com/products/docker-desktop/), [XQuartz or other X11](https://www.xquartz.org/)
+Preinstallation requirements: wget, curl, [Docker](https://www.docker.com/products/docker-desktop/), [XQuartz or other X11](https://www.xquartz.org/)
 
 To develop an application running using the SCTP protocol, Linux with pre-installed lksctp-tools is required.
 
@@ -19,12 +19,13 @@ The suggested script does the following:
 The base image is used: _bellsoft/liberica-openjdk-centos:21.0.2-14_
 
 Next, the following is added to the image:
-* install
+* git
 * lksctp-tools
 * xorg-x11-server-Xorg
 * xorg-x11-xauth
 * xorg-x11-apps
 * libXtst
+* sudo
 
 If you have a license for IntelliJ IDEA Ultimate, then you can run the script with the IU parameter. In this case, IntelliJ IDEA Ultimate version will be used
 

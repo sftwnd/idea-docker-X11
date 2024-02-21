@@ -15,12 +15,19 @@ DOCKER_CONTAINER_NAME=
 # DOCKER_CONTAINER_USER=
 DOCKER_CONTAINER_USER=idea
 # DOCKER_CONTAINER_USER=root
+DOCKER_CONTAINER_HOSTNAME=
 
 PROJECTS_PATH=
 
-DISPLAY_HOST=host.docker.internal
+# gateway.docker.internal, docker.for.mac.host.internal, host.docker.internal , docker.for.mac.host.internal, docker.for.mac.localhost
+# DISPLAY_HOST=host.docker.internal
+DISPLAY_HOST=docker.for.mac.host.internal
 DISPLAY_ID=0
-BASE_DOCKER_IMAGE=bellsoft/liberica-openjdk-centos:21.0.2-14
+
+# 21.0.1-12-cds, 17.0.9-11-cds, 11.0.21-10-cds, 8u392-9-cds
+BELLSOFT_JAVA_TAG=17.0.9-11-cds
+BASE_DOCKER_IMAGE=bellsoft/liberica-openjdk-centos:$BELLSOFT_JAVA_TAG
+
 
 # DOCKER_CONTAINER_START_OPTION=-it
 DOCKER_CONTAINER_START_OPTION=-d
@@ -87,6 +94,10 @@ else
   
   # Identify Maven Version
   if [ "$MAVEN_VERSION" == "" ]; then
+    if [ "$(which curl 2>>/dev/null|wc -l|xargs)" == 0 ]; then
+      echo Unable to find wget
+      exit 1;
+    fi
     MAVEN_VERSION="$(curl https://archive.apache.org/dist/maven/maven-3/ 2>/dev/null|grep -E 'href=\"\d+\.\d+\.\d+\/\"'|sed -nE 's/^.*href="(.*)\/".*$/\1/p'|sort -r|head -n1)"
   fi
   MAVEN_NAME=apache-maven-$MAVEN_VERSION
@@ -99,12 +110,20 @@ else
   
   # Load java api-doc
   if [ ! -f "docs/jdk-21.0.2_doc-all.zip" ]; then
+    if [ "$(which wget 2>>/dev/null|wc -l|xargs)" == 0 ]; then
+      echo Unable to find wget
+      exit 1;
+    fi
     wget https://download.oracle.com/otn_software/java/jdk/21.0.2+13/f2283984656d49d69e91c558476027ac/jdk-21.0.2_doc-all.zip -O docs/jdk-21.0.2_doc-all.zip
   fi
   
   # Identify IDEA Version
   if [ "$IDEA_BUILD" == "" ] || [ "$IDEA_VERSION" == "" ]; then
     if [ "$IDEA_RELEASE" == "" ]; then
+      if [ "$(which curl 2>>/dev/null|wc -l|xargs)" == 0 ]; then
+        echo Unable to find wget
+        exit 1;
+      fi
       IDEA_RELEASE="$(curl https://www.jetbrains.com/updates/updates.xml 2> /dev/null| grep "IntelliJ IDEA RELEASE" -A 3|grep "build number"|sed -nE 's/^.*version="(.*)" release.*fullNumber="(.*)".*$/\1@\2/p')"
     fi
     if [ "$IDEA_BUILD" == "" ]; then
@@ -121,6 +140,10 @@ else
   
   if [ ! -d "$MAVEN_NAME" ]; then
     if [ ! -f "$MAVEN_FILE_NAME" ]; then
+      if [ "$(which wget 2>>/dev/null|wc -l|xargs)" == 0 ]; then
+        echo Unable to find wget
+        exit 1;
+      fi
       echo Download Maven distributive: $MAVEN_FILE_NAME
       wget "https://www.apache.org/dist/maven/maven-3/$MAVEN_VERSION/binaries/$MAVEN_FILE_NAME"
     else
@@ -134,6 +157,10 @@ else
   
   if [ ! -d "$IDEA_NAME" ]; then
     if [ ! -f "$IDEA_FILE_NAME" ]; then
+      if [ "$(which wget 2>>/dev/null|wc -l|xargs)" == 0 ]; then
+        echo Unable to find wget
+        exit 1;
+      fi
       echo Download IDEA distributive: $IDEA_FILE_NAME
       wget https://download.jetbrains.com/idea/"$IDEA_FILE_NAME"
     else
@@ -163,14 +190,17 @@ else
 
       echo FROM $BASE_DOCKER_IMAGE > Dockerfile
       echo USER root >> Dockerfile
-      echo 'RUN yum -y install lksctp-tools xorg-x11-server-Xorg xorg-x11-xauth xorg-x11-apps libXtst sudo whoami \' >> Dockerfile
+      echo 'RUN yum -y install git lksctp-tools xorg-x11-server-Xorg xorg-x11-xauth xorg-x11-apps libXtst sudo whoami \' >> Dockerfile
       echo ' && yum clean all \' >> Dockerfile
       echo ' && usermod -p "" root \' >> Dockerfile
       if [ ! "$DOCKER_CONTAINER_USER" == "root" ]; then
         echo " && groupadd -g $GROUPID -f staff \\" >> Dockerfile
         echo " && useradd -m -d $DOCKER_CONTAINER_USER_HOME -u $USRID -g $GROUPID $DOCKER_CONTAINER_USER \\" >> Dockerfile
         echo ' && usermod -aG wheel -p "" '$DOCKER_CONTAINER_USER' \' >> Dockerfile
+        echo " && echo $DOCKER_CONTAINER_USER ALL=\(ALL:ALL\) ALL >> /etc/sudoers \\" >> Dockerfile
+        echo " && echo "\"export PS1=\'\\[\\e[0\;33m\\]\\u\\[\\e[0m\\]@\\[\\e[0\;32m\\]\\h\\[\\e[0m\\]:\\[\\e[0\;34m\\]\\w\\[\\e[0m\\]\\$ \'\"" >> $DOCKER_CONTAINER_USER_HOME/.bashrc \\" >> Dockerfile
       fi
+      echo " && echo "\"export PS1=\'\\[\\e[0\;32m\\]\\h\\[\\e[0m\\]:\\[\\e[0\;34m\\]\\w\\[\\e[0m\\]# \'\"" >> /root/.bashrc \\" >> Dockerfile
       echo ' && ln -s /opt/maven/bin/mvn /usr/bin/mvn \' >> Dockerfile
       echo ' && ln -s /opt/idea/bin/idea.sh /usr/bin/idea' >> Dockerfile
       echo USER $DOCKER_CONTAINER_USER >> Dockerfile
@@ -206,16 +236,21 @@ else
   xhost + > /dev/null
 
   if [ ! "$DOCKER_CONTAINER_USER" == "root" ]; then
-    USERPARAM=--user \"$USRID:$GROUPID\"
+    USERPARAM="--user $USRID:$GROUPID"
+  fi
+
+  if [ "$DOCKER_CONTAINER_HOSTNAME" == "" ]; then
+    DOCKER_CONTAINER_HOSTNAME=intellij-idea-"$(awk -vcode="$IDEA_CODE" 'BEGIN { print tolower(code) }')"
   fi
   echo Run docker container: $DOCKER_CONTAINER_NAME
   docker run $DOCKER_CONTAINER_START_OPTION $DOCKER_CONTAINER_ADDITIONAL_OPTION \
-    --name $DOCKER_CONTAINER_NAME \
+    --name $DOCKER_CONTAINER_NAME $USERPARAM \
+    --hostname $DOCKER_CONTAINER_HOSTNAME \
     --mount type=bind,source=/tmp/.X11-unix,target=/tmp/.X11-unix \
     --mount type=bind,source=$HOME/.m2,target=$DOCKER_CONTAINER_USER_HOME/.m2 \
     --mount type=bind,source=./$IDEA_NAME,target=/opt/idea \
     --mount type=bind,source=./$MAVEN_NAME,target=/opt/maven \
     --mount type=bind,source="$PROJECTS_PATH",target=$DOCKER_CONTAINER_USER_HOME/IdeaProjects \
     --mount type=bind,source=./docs,target=$DOCKER_CONTAINER_USER_HOME/docs \
-    $USERPARAM "$DOCKER_IMAGE_NAME:$DOCKER_IMAGE_VERSION"
+    "$DOCKER_IMAGE_NAME:$DOCKER_IMAGE_VERSION"
 fi
