@@ -4,6 +4,7 @@ export PS1="\[\e[0;33m\]idea\[\e[0m\]@\[\e[0;32m\]docker\[\e[0m\]:\[\e[0;34m\]\w
 
 MAVEN_VERSION=
 # IDEA_RELEASE IS %IDEA_VERSION%@%IDEA_BUILD%
+GRADLE_VERSION=8.6
 IDEA_RELEASE=
 IDEA_BUILD=
 IDEA_VERSION=
@@ -85,6 +86,48 @@ if [ ! "$(docker ps --filter="ancestor=$DOCKER_IMAGE_NAME:$DOCKER_IMAGE_VERSION"
   exit -1;  
 fi
 
+check() {
+  CHECK_FILE=$1
+  if [ ! "$CHECK_FILE" == "" ]; then
+    if [ "$(which $CHECK_FILE 2>>/dev/null|wc -l|xargs)" == 0 ]; then
+      echo Unable to find $CHECK_FILE
+      exit 1;
+    fi
+  fi
+}
+
+load_document() {
+  WGET_URL=$(echo "$1"|head -n1|xargs)
+  WGET_FILE=$(echo "$2"|head -n1|xargs)
+  WGET_PATH=$(echo "$3"|head -n1|xargs)
+  if [ ! "$WGET_URL" == "" ]; then
+    if [ "$WGET_FILE" == "" ]; then
+      WGET_FILE=$(echo $WGET_URL|sed -E 's|.*/(.*)$|\1|')
+    fi
+    if [ ! "${WGET_FILE}" == "" ]; then
+      if [ ! "${WGET_PATH}" == "" ]; then
+        if [ ! -d "${WGET_PATH}" ]; then
+          mkdir -p "${WGET_PATH}" 2> /dev/null
+        fi
+        WGET_FILE=$WGET_PATH/$WGET_FILE
+      fi
+    fi
+    if [ ! "${WGET_FILE}" == "" ]; then
+      if [ ! -f "${WGET_FILE}" ]; then
+        check wget
+        wget "$WGET_URL" -O "$WGET_FILE"
+      fi
+    else
+      check wget
+      wget "$WGET_URL"
+    fi
+  fi
+  WGET_PATH=
+  WGET_URL=
+  WGET_FILE=
+}
+
+
 if [ ! "$(docker ps -a|grep -E "^.*$DOCKER_IMAGE_NAME\:$DOCKER_IMAGE_VERSION\s+.*$DOCKER_CONTAINER_NAME\s*"|wc -l|xargs)" == "0" ]; then
   echo Start existed container: $DOCKER_CONTAINER_NAME
   xhost + > /dev/null
@@ -94,38 +137,53 @@ else
   
   # Identify Maven Version
   if [ "$MAVEN_VERSION" == "" ]; then
-    if [ "$(which curl 2>>/dev/null|wc -l|xargs)" == 0 ]; then
-      echo Unable to find wget
-      exit 1;
-    fi
+    check curl
     MAVEN_VERSION="$(curl https://archive.apache.org/dist/maven/maven-3/ 2>/dev/null|grep -E 'href=\"\d+\.\d+\.\d+\/\"'|sed -nE 's/^.*href="(.*)\/".*$/\1/p'|sort -r|head -n1)"
   fi
   MAVEN_NAME=apache-maven-$MAVEN_VERSION
   MAVEN_FILE_NAME=apache-maven-"$MAVEN_VERSION"-bin.tar.gz
   echo Maven version: $MAVEN_VERSION, name: $MAVEN_NAME, file: $MAVEN_FILE_NAME
-  
-  if [ ! -d "docs" ]; then
-    mkdir -p docs
-  fi
-  
-  # Load java api-doc
-  if [ ! -f "docs/jdk-21.0.2_doc-all.zip" ]; then
-    if [ "$(which wget 2>>/dev/null|wc -l|xargs)" == 0 ]; then
-      echo Unable to find wget
-      exit 1;
+
+  # Load Gradle (if defined)
+  if [ ! "$GRADLE_VERSION" == "" ]; then
+    check curl
+    GRADLE_BUILD=$(curl https://services.gradle.org/distributions-snapshots/ 2>/dev/null|grep ">gradle-$GRADLE_VERSION-"|grep -E "gradle-8.6-\d+\+\d+-bin\.zip<"| sed -E "s/^.*gradle-.*-(.+)-bin.*/\1/p"|uniq|sort -r|head -n1|xargs)
+    GRADLE_PATH_NAME=gradle-${GRADLE_VERSION}-${GRADLE_BUILD}
+    if [ ! -d "$GRADLE_PATH_NAME" ]; then
+      GRADLE_FILE_NAME=gradle-${GRADLE_VERSION}-${GRADLE_BUILD}-bin.zip
+      if [ ! -f "$GRADLE_FILE_NAME" ]; then
+        load_document "https://services.gradle.org/distributions-snapshots/gradle-${GRADLE_VERSION}-${GRADLE_BUILD}-bin.zip" "$GRADLE_FILE_NAME"
+      fi
+      unzip -o "${GRADLE_FILE_NAME}"
     fi
-    wget https://download.oracle.com/otn_software/java/jdk/21.0.2+13/f2283984656d49d69e91c558476027ac/jdk-21.0.2_doc-all.zip -O docs/jdk-21.0.2_doc-all.zip
   fi
-  
+
+  # Load java api-doc
+  # https://download.oracle.com/otn-pub/java/jdk/8u401-b10/4d245f941845490c91360409ecffb3b4/jdk-8u401-docs-all.zip
+  # https://download.oracle.com/otn-pub/java/javafx/8.0.401-b10/4d245f941845490c91360409ecffb3b4/javafx-8u401-apidocs.zip
+  # https://download.oracle.com/otn-pub/java/jdk/11.0.22+9/8662aac2120442c2a89b1ee9c67d7069/jdk-11.0.22_doc-all.zip
+  # https://download.oracle.com/otn_software/java/jdk/17.0.10+11/a473b47039a34b169d45b00685dea3dd/jdk-17.0.10_doc-all.zip
+  # https://download.oracle.com/otn_software/java/jdk/21.0.2+13/f2283984656d49d69e91c558476027ac/jdk-21.0.2_doc-all.zip
+  JDK_VERSION=$(echo $BELLSOFT_JAVA_TAG|sed -E 's/^(..).*/\1/p'|head -n1|xargs)
+  if [ "$JDK_VERSION" == "8u" ]; then
+    load_document https://download.oracle.com/otn-pub/java/jdk/8u401-b10/4d245f941845490c91360409ecffb3b4/jdk-8u401-docs-all.zip "" docs
+    load_document https://download.oracle.com/otn-pub/java/javafx/8.0.401-b10/4d245f941845490c91360409ecffb3b4/javafx-8u401-apidocs.zip "" docs
+  elif [ "$JDK_VERSION" == "11" ]; then
+    load_document https://download.oracle.com/otn-pub/java/jdk/8u401-b10/4d245f941845490c91360409ecffb3b4/jdk-8u401-docs-all.zip "" docs
+  elif [ "$JDK_VERSION" == "17" ]; then
+    load_document https://download.oracle.com/otn_software/java/jdk/17.0.10+11/a473b47039a34b169d45b00685dea3dd/jdk-17.0.10_doc-all.zip "" docs
+  else
+    load_document https://download.oracle.com/otn_software/java/jdk/21.0.2+13/f2283984656d49d69e91c558476027ac/jdk-21.0.2_doc-all.zip "" docs
+  fi  
+
+
   # Identify IDEA Version
   if [ "$IDEA_BUILD" == "" ] || [ "$IDEA_VERSION" == "" ]; then
     if [ "$IDEA_RELEASE" == "" ]; then
-      if [ "$(which curl 2>>/dev/null|wc -l|xargs)" == 0 ]; then
-        echo Unable to find wget
-        exit 1;
-      fi
-      IDEA_RELEASE="$(curl https://www.jetbrains.com/updates/updates.xml 2> /dev/null| grep "IntelliJ IDEA RELEASE" -A 3|grep "build number"|sed -nE 's/^.*version="(.*)" release.*fullNumber="(.*)".*$/\1@\2/p')"
+      check curl
+      IDEA_RELEASE="$(curl https://www.jetbrains.com/updates/updates.xml 2> /dev/null| grep "IntelliJ IDEA RELEASE" -A 3|grep "build number"|sed -E 's/^.*version="(.*)" release.*fullNumber="(.*)".*$/\1@\2/p'|sort -r|head -n1)"
     fi
+    echo IDEA_RELEASE: $IDEA_RELEASE
     if [ "$IDEA_BUILD" == "" ]; then
       IDEA_BUILD="$(echo $IDEA_RELEASE|sed -nE 's/^.*@(.*)$/\1/p')"
     fi
@@ -140,12 +198,8 @@ else
   
   if [ ! -d "$MAVEN_NAME" ]; then
     if [ ! -f "$MAVEN_FILE_NAME" ]; then
-      if [ "$(which wget 2>>/dev/null|wc -l|xargs)" == 0 ]; then
-        echo Unable to find wget
-        exit 1;
-      fi
       echo Download Maven distributive: $MAVEN_FILE_NAME
-      wget "https://www.apache.org/dist/maven/maven-3/$MAVEN_VERSION/binaries/$MAVEN_FILE_NAME"
+      load_document "https://www.apache.org/dist/maven/maven-3/$MAVEN_VERSION/binaries/$MAVEN_FILE_NAME"
     else
       echo Maven distributive already exists: $MAVEN_FILE_NAME
     fi
@@ -157,12 +211,8 @@ else
   
   if [ ! -d "$IDEA_NAME" ]; then
     if [ ! -f "$IDEA_FILE_NAME" ]; then
-      if [ "$(which wget 2>>/dev/null|wc -l|xargs)" == 0 ]; then
-        echo Unable to find wget
-        exit 1;
-      fi
       echo Download IDEA distributive: $IDEA_FILE_NAME
-      wget https://download.jetbrains.com/idea/"$IDEA_FILE_NAME"
+      load_document "https://download.jetbrains.com/idea/${IDEA_FILE_NAME}"
     else
       echo IDEA distributive already exists: $IDEA_FILE_NAME
     fi
@@ -202,7 +252,14 @@ else
       fi
       echo " && echo "\"export PS1=\'\\[\\e[0\;32m\\]\\h\\[\\e[0m\\]:\\[\\e[0\;34m\\]\\w\\[\\e[0m\\]# \'\"" >> /root/.bashrc \\" >> Dockerfile
       echo ' && ln -s /opt/maven/bin/mvn /usr/bin/mvn \' >> Dockerfile
-      echo ' && ln -s /opt/idea/bin/idea.sh /usr/bin/idea' >> Dockerfile
+      if [ ! "$GRADLE_PATH_NAME" == "" ] && [ -d "$GRADLE_PATH_NAME" ]; then
+        echo ' && ln -s /opt/gradle/bin/gradle /usr/bin/gradle \' >> Dockerfile
+      fi
+      echo ' && ln -s /opt/idea/bin/idea.sh /usr/bin/idea \' >> Dockerfile
+      echo " && echo '#!/bin/bash' > /opt/entry \\" >> Dockerfile
+      echo " && echo 'find ~/.c* -name *.lock -exec rm {} \\;' >> /opt/entry \\" >> Dockerfile
+      echo " && echo '/opt/idea/bin/idea.sh' >> /opt/entry \\" >> Dockerfile
+      echo ' && chmod a+x /opt/entry' >> Dockerfile
       echo USER $DOCKER_CONTAINER_USER >> Dockerfile
       echo "ENV M2_HOME $DOCKER_CONTAINER_USER_HOME/.m2" >> Dockerfile
       echo ENV MAVEN_HOME /opt/apache-maven >> Dockerfile
@@ -212,7 +269,7 @@ else
       echo "ENV MAVEN_CONFIG=\"-s $DOCKER_CONTAINER_USER_HOME/.m2/settings.xml\"" >> Dockerfile
       echo EXPOSE 80 8080 5005 >> Dockerfile
       echo "WORKDIR $DOCKER_CONTAINER_USER_HOME" >> Dockerfile
-      echo ENTRYPOINT idea >> Dockerfile
+      echo 'ENTRYPOINT /opt/entry' >> Dockerfile
       echo Dockerfile has been created
     else
       echo Dockerfile already exists
@@ -235,22 +292,29 @@ else
   
   xhost + > /dev/null
 
+
   if [ ! "$DOCKER_CONTAINER_USER" == "root" ]; then
-    USERPARAM="--user $USRID:$GROUPID"
+    DOCKER_USER_OPTION="--user $USRID:$GROUPID"
+  fi
+
+  if [ ! "$GRADLE_PATH_NAME" == "" ] && [ -d "$GRADLE_PATH_NAME" ]; then
+    DOCKER_MOUT_OPTION="--mount type=bind,source=./${GRADLE_PATH_NAME},target=/opt/gradle"
   fi
 
   if [ "$DOCKER_CONTAINER_HOSTNAME" == "" ]; then
     DOCKER_CONTAINER_HOSTNAME=intellij-idea-"$(awk -vcode="$IDEA_CODE" 'BEGIN { print tolower(code) }')"
   fi
+
   echo Run docker container: $DOCKER_CONTAINER_NAME
   docker run $DOCKER_CONTAINER_START_OPTION $DOCKER_CONTAINER_ADDITIONAL_OPTION \
-    --name $DOCKER_CONTAINER_NAME $USERPARAM \
-    --hostname $DOCKER_CONTAINER_HOSTNAME \
+    --name $DOCKER_CONTAINER_NAME \
+    --hostname $DOCKER_CONTAINER_HOSTNAME $DOCKER_USER_OPTION \
     --mount type=bind,source=/tmp/.X11-unix,target=/tmp/.X11-unix \
     --mount type=bind,source=$HOME/.m2,target=$DOCKER_CONTAINER_USER_HOME/.m2 \
     --mount type=bind,source=./$IDEA_NAME,target=/opt/idea \
     --mount type=bind,source=./$MAVEN_NAME,target=/opt/maven \
     --mount type=bind,source="$PROJECTS_PATH",target=$DOCKER_CONTAINER_USER_HOME/IdeaProjects \
-    --mount type=bind,source=./docs,target=$DOCKER_CONTAINER_USER_HOME/docs \
-    "$DOCKER_IMAGE_NAME:$DOCKER_IMAGE_VERSION"
+    --mount type=bind,source=./docs,target=$DOCKER_CONTAINER_USER_HOME/docs $DOCKER_MOUT_OPTION \
+    $DOCKER_IMAGE_NAME:$DOCKER_IMAGE_VERSION idea
+
 fi
