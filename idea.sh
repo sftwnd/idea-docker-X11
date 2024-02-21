@@ -4,7 +4,8 @@ export PS1="\[\e[0;33m\]idea\[\e[0m\]@\[\e[0;32m\]docker\[\e[0m\]:\[\e[0;34m\]\w
 
 MAVEN_VERSION=
 # IDEA_RELEASE IS %IDEA_VERSION%@%IDEA_BUILD%
-GRADLE_VERSION=8.6
+# GRADLE_VERSION=8.6
+GRADLE_VERSION=
 IDEA_RELEASE=
 IDEA_BUILD=
 IDEA_VERSION=
@@ -54,6 +55,17 @@ IDEA_CODE="$(awk -vparam1="$1" -viu="IU" -vic="IC" 'BEGIN {
     print ic
   }
 }')"
+
+# Create projectd path
+if [ "$PROJECTS_PATH" == "" ]; then
+  PROJECTS_PATH=./IdeaProjects
+fi
+
+echo IdeaProject path: $PROJECTS_PATH
+
+if [ ! -d "$PROJECTS_PATH" ]; then
+  mkdir -p "$PROJECTS_PATH"
+fi
 
 if [ "$DOCKER_CONTAINER_NAME" == "" ] && [ "$IDEA_CODE" == "" ]; then
   if [ "$(docker ps -a --filter="ancestor=$DOCKER_IMAGE_NAME:$DOCKER_IMAGE_VERSION" --format="table{{.Names}}"|grep -v NAMES|wc -l|xargs)" == "1" ]; then
@@ -122,6 +134,9 @@ load_document() {
       wget "$WGET_URL"
     fi
   fi
+  if [ -f "wget-log" ]; then
+    rm wget-log 2>/dev/null
+  fi
   WGET_PATH=
   WGET_URL=
   WGET_FILE=
@@ -145,16 +160,23 @@ else
   echo Maven version: $MAVEN_VERSION, name: $MAVEN_NAME, file: $MAVEN_FILE_NAME
 
   # Load Gradle (if defined)
+  if [ "${GRADLE_VERSION}" == "" ]; then
+    GRADLE_VERSION=$(curl https://services.gradle.org/distributions-snapshots/ 2>/dev/null|grep -e "^.*href.*-bin\.zip"|sed -E "s/^.*gradle-(.*)-(.+)-bin.*/\1/p"|grep -E "^(\d+\.)+\d+$"|uniq|sort -r|head -n1|xargs)
+    echo Gradle version: $GRADLE_VERSION
+  fi
   if [ ! "$GRADLE_VERSION" == "" ]; then
     check curl
-    GRADLE_BUILD=$(curl https://services.gradle.org/distributions-snapshots/ 2>/dev/null|grep ">gradle-$GRADLE_VERSION-"|grep -E "gradle-8.6-\d+\+\d+-bin\.zip<"| sed -E "s/^.*gradle-.*-(.+)-bin.*/\1/p"|uniq|sort -r|head -n1|xargs)
+    GRADLE_BUILD=$(curl https://services.gradle.org/distributions-snapshots/ 2>/dev/null|grep ">gradle-${GRADLE_VERSION}-"|grep -E "gradle-${GRADLE_VERSION}-\d+\+\d+-bin\.zip<"| sed -E "s/^.*gradle-.*-(.+)-bin.*/\1/p"|uniq|sort -r|head -n1|xargs)
+    echo Gradle build: $GRADLE_BUILD
     GRADLE_PATH_NAME=gradle-${GRADLE_VERSION}-${GRADLE_BUILD}
     if [ ! -d "$GRADLE_PATH_NAME" ]; then
       GRADLE_FILE_NAME=gradle-${GRADLE_VERSION}-${GRADLE_BUILD}-bin.zip
+      echo Gradle file name: $GRADLE_FILE_NAME
       if [ ! -f "$GRADLE_FILE_NAME" ]; then
         load_document "https://services.gradle.org/distributions-snapshots/gradle-${GRADLE_VERSION}-${GRADLE_BUILD}-bin.zip" "$GRADLE_FILE_NAME"
       fi
-      unzip -o "${GRADLE_FILE_NAME}"
+      unzip -o "${GRADLE_FILE_NAME}" > /dev/null
+      rm "${GRADLE_FILE_NAME}"
     fi
   fi
 
@@ -183,7 +205,6 @@ else
       check curl
       IDEA_RELEASE="$(curl https://www.jetbrains.com/updates/updates.xml 2> /dev/null| grep "IntelliJ IDEA RELEASE" -A 3|grep "build number"|sed -E 's/^.*version="(.*)" release.*fullNumber="(.*)".*$/\1@\2/p'|sort -r|head -n1)"
     fi
-    echo IDEA_RELEASE: $IDEA_RELEASE
     if [ "$IDEA_BUILD" == "" ]; then
       IDEA_BUILD="$(echo $IDEA_RELEASE|sed -nE 's/^.*@(.*)$/\1/p')"
     fi
@@ -204,7 +225,8 @@ else
       echo Maven distributive already exists: $MAVEN_FILE_NAME
     fi
     echo Extract Maven files to: $MAVEN_NAME from: $MAVEN_FILE_NAME
-    tar -xzf "$MAVEN_FILE_NAME"
+    tar -xzf "${MAVEN_FILE_NAME}"
+    rm "${MAVEN_FILE_NAME}"
   else
     echo Maven home already exists: $MAVEN_NAME
   fi
@@ -217,7 +239,8 @@ else
       echo IDEA distributive already exists: $IDEA_FILE_NAME
     fi
     echo Extract IDEA files to: $IDEA_NAME from: $IDEA_FILE_NAME
-    tar -xzf "$IDEA_FILE_NAME"
+    tar -xzf "${IDEA_FILE_NAME}"
+    rm "${IDEA_FILE_NAME}"
   else
     echo IDEA home already exists: $IDEA_NAME
   fi
@@ -240,7 +263,7 @@ else
 
       echo FROM $BASE_DOCKER_IMAGE > Dockerfile
       echo USER root >> Dockerfile
-      echo 'RUN yum -y install git lksctp-tools xorg-x11-server-Xorg xorg-x11-xauth xorg-x11-apps libXtst sudo whoami \' >> Dockerfile
+      echo 'RUN yum -y install lksctp-tools xorg-x11-server-Xorg xorg-x11-xauth xorg-x11-apps libXtst sudo git \' >> Dockerfile
       echo ' && yum clean all \' >> Dockerfile
       echo ' && usermod -p "" root \' >> Dockerfile
       if [ ! "$DOCKER_CONTAINER_USER" == "root" ]; then
@@ -259,6 +282,7 @@ else
       echo " && echo '#!/bin/bash' > /opt/entry \\" >> Dockerfile
       echo " && echo 'find ~/.c* -name *.lock -exec rm {} \\;' >> /opt/entry \\" >> Dockerfile
       echo " && echo '/opt/idea/bin/idea.sh' >> /opt/entry \\" >> Dockerfile
+      echo ' && rm -rf /tmp/* \' >> Dockerfile
       echo ' && chmod a+x /opt/entry' >> Dockerfile
       echo USER $DOCKER_CONTAINER_USER >> Dockerfile
       echo "ENV M2_HOME $DOCKER_CONTAINER_USER_HOME/.m2" >> Dockerfile
@@ -278,16 +302,6 @@ else
     docker build -t $DOCKER_IMAGE_NAME:$DOCKER_IMAGE_VERSION . --no-cache
   else
     echo Docker image "$DOCKER_IMAGE_NAME:$DOCKER_IMAGE_VERSION" is already exists
-  fi
-  
-  if [ "$PROJECTS_PATH" == "" ]; then
-    PROJECTS_PATH=./IdeaProjects
-  fi
-  
-  echo IdeaProject path: $PROJECTS_PATH
-  
-  if [ ! -d "$PROJECTS_PATH" ]; then
-    mkdir -p "$PROJECTS_PATH"
   fi
   
   xhost + > /dev/null
