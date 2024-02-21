@@ -13,8 +13,9 @@ This script is designed to simplify development in Java using the SCTP protocol 
 The suggested script does the following:
 * downloads the latest version of IntelliJ IDEA
 * downloads the latest version of maven
+* downloads the latest version of gradle
 * Creates a new docker image with a linked idea
-* At startup, IntelliJ IDEA is launched on the specified X11 Server
+* IntelliJ IDEA is launched in docker to the specified X11 Server
 
 The base image is used: _bellsoft/liberica-openjdk-centos:21.0.2-14_
 
