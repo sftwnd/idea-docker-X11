@@ -1,35 +1,34 @@
 #!/bin/bash
 
-export PS1="\[\e[0;33m\]idea\[\e[0m\]@\[\e[0;32m\]docker\[\e[0m\]:\[\e[0;34m\]\w\[\e[0m\]\$"
-
-MAVEN_VERSION=
-# IDEA_RELEASE IS %IDEA_VERSION%@%IDEA_BUILD%
-# GRADLE_VERSION=8.6
-GRADLE_VERSION=
-IDEA_RELEASE=
-IDEA_BUILD=
-IDEA_VERSION=
-
-DOCKER_IMAGE_NAME=
-DOCKER_IMAGE_VERSION=
-DOCKER_CONTAINER_NAME=
+# export PS1="\[\e[0;33m\]idea\[\e[0m\]@\[\e[0;32m\]docker\[\e[0m\]:\[\e[0;34m\]\w\[\e[0m\]\$"
 
 # DOCKER_CONTAINER_USER=
 DOCKER_CONTAINER_USER=idea
 # DOCKER_CONTAINER_USER=root
-DOCKER_CONTAINER_HOSTNAME=
 
-PROJECTS_PATH=
+# PROJECTS_PATH=
+# MAVEN_VERSION=
+# GRADLE_VERSION=8.8
+# GRADLE_BUILD=20240220001317+0000
+# # IDEA_RELEASE IS %IDEA_VERSION%@%IDEA_BUILD%
+# IDEA_RELEASE=
+# IDEA_BUILD=
+# IDEA_VERSION=
+
+# DOCKER_IMAGE_NAME=
+# DOCKER_IMAGE_VERSION=
+# DOCKER_CONTAINER_NAME=
+
+# DOCKER_CONTAINER_HOSTNAME=
 
 # gateway.docker.internal, docker.for.mac.host.internal, host.docker.internal , docker.for.mac.host.internal, docker.for.mac.localhost
 # DISPLAY_HOST=host.docker.internal
 DISPLAY_HOST=docker.for.mac.host.internal
-DISPLAY_ID=0
+# DISPLAY_ID=0
 
 # 21.0.1-12-cds, 17.0.9-11-cds, 11.0.21-10-cds, 8u392-9-cds
-BELLSOFT_JAVA_TAG=17.0.9-11-cds
+BELLSOFT_JAVA_TAG=21.0.1-12-cds
 BASE_DOCKER_IMAGE=bellsoft/liberica-openjdk-centos:$BELLSOFT_JAVA_TAG
-
 
 # DOCKER_CONTAINER_START_OPTION=-it
 DOCKER_CONTAINER_START_OPTION=-d
@@ -164,19 +163,30 @@ else
     GRADLE_VERSION=$(curl https://services.gradle.org/distributions-snapshots/ 2>/dev/null|grep -e "^.*href.*-bin\.zip"|sed -E "s/^.*gradle-(.*)-(.+)-bin.*/\1/p"|grep -E "^(\d+\.)+\d+$"|uniq|sort -r|head -n1|xargs)
     echo Gradle version: $GRADLE_VERSION
   fi
-  if [ ! "$GRADLE_VERSION" == "" ]; then
-    check curl
-    GRADLE_BUILD=$(curl https://services.gradle.org/distributions-snapshots/ 2>/dev/null|grep ">gradle-${GRADLE_VERSION}-"|grep -E "gradle-${GRADLE_VERSION}-\d+\+\d+-bin\.zip<"| sed -E "s/^.*gradle-.*-(.+)-bin.*/\1/p"|uniq|sort -r|head -n1|xargs)
-    echo Gradle build: $GRADLE_BUILD
-    GRADLE_PATH_NAME=gradle-${GRADLE_VERSION}-${GRADLE_BUILD}
-    if [ ! -d "$GRADLE_PATH_NAME" ]; then
-      GRADLE_FILE_NAME=gradle-${GRADLE_VERSION}-${GRADLE_BUILD}-bin.zip
-      echo Gradle file name: $GRADLE_FILE_NAME
-      if [ ! -f "$GRADLE_FILE_NAME" ]; then
-        load_document "https://services.gradle.org/distributions-snapshots/gradle-${GRADLE_VERSION}-${GRADLE_BUILD}-bin.zip" "$GRADLE_FILE_NAME"
+  if [ ! "${GRADLE_VERSION}" == "" ]; then
+    if [ "${GRADLE_BUILD}" == "" ]; then
+      check curl
+      GRADLE_BUILD=$(curl https://services.gradle.org/distributions-snapshots/ 2>/dev/null|grep ">gradle-${GRADLE_VERSION}-"|grep -E "gradle-${GRADLE_VERSION}-\d+\+\d+-bin\.zip<"| sed -E "s/^.*gradle-.*-(.+)-bin.*/\1/p"|uniq|sort -r|head -n1|xargs)
+      echo Gradle build: $GRADLE_BUILD
+    fi
+    if [ ! "${GRADLE_BUILD}" == "" ]; then
+      GRADLE_PATH_NAME=gradle-${GRADLE_VERSION}-${GRADLE_BUILD}
+      if [ ! -d "${GRADLE_PATH_NAME}" ]; then
+        GRADLE_FILE_NAME=gradle-${GRADLE_VERSION}-${GRADLE_BUILD}-bin.zip
+        echo Gradle file name: $GRADLE_FILE_NAME
+        if [ ! -f "$GRADLE_FILE_NAME" ]; then
+          load_document "https://services.gradle.org/distributions-snapshots/gradle-${GRADLE_VERSION}-${GRADLE_BUILD}-bin.zip" "$GRADLE_FILE_NAME"
+        fi
+        if [ -f "${GRADLE_FILE_NAME}" ]; then
+          unzip -o "${GRADLE_FILE_NAME}" > /dev/null
+          rm "${GRADLE_FILE_NAME}"
+          if [ ! -d "${GRADLE_PATH_NAME}" ]; then
+            echo Unable to find gradle folder: ${GRADLE_PATH_NAME}
+          fi
+        else
+          echo Unable to load gradle: {GRADLE_FILE_NAME}
+        fi
       fi
-      unzip -o "${GRADLE_FILE_NAME}" > /dev/null
-      rm "${GRADLE_FILE_NAME}"
     fi
   fi
 
@@ -289,6 +299,9 @@ else
       echo ENV MAVEN_HOME /opt/apache-maven >> Dockerfile
       echo ENV MAVEN_OPTS=-Xms128m >> Dockerfile
       echo ENV LOCALE=en_RU.UTF-8 >> Dockerfile
+      if [ "$DISPLAY_ID" == "" ]; then
+        DISPLAY_ID=0
+      fi
       echo ENV DISPLAY=$DISPLAY_HOST:$DISPLAY_ID >> Dockerfile
       echo "ENV MAVEN_CONFIG=\"-s $DOCKER_CONTAINER_USER_HOME/.m2/settings.xml\"" >> Dockerfile
       echo EXPOSE 80 8080 5005 >> Dockerfile
