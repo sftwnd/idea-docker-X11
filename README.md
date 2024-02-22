@@ -1,4 +1,4 @@
-# Idea in docker X11 (CentOS with SCTP support)
+# Idea in docker X11 (CentOS with Java & SCTP support)
 
 _IntelliJ IDEA start for SCTP development on Linux/Docker_
 
