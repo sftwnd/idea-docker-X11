@@ -1,0 +1,7 @@
+apache*
+docs
+docs/**
+gradle*
+idea-I*
+ideaProjects
+Dockerfile

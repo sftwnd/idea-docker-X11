@@ -273,7 +273,11 @@ else
 
       echo FROM $BASE_DOCKER_IMAGE > Dockerfile
       echo USER root >> Dockerfile
-      echo 'RUN yum -y install lksctp-tools xorg-x11-server-Xorg xorg-x11-xauth xorg-x11-apps libXtst sudo git \' >> Dockerfile
+
+      echo 'RUN sed -i s/mirror.centos.org/vault.centos.org/g /etc/yum.repos.d/*.repo \' >> Dockerfile
+      echo ' && sed -i s/^#.*baseurl=http/baseurl=https/g /etc/yum.repos.d/*.repo \' >> Dockerfile
+      echo ' && sed -i s/^mirrorlist=http/#mirrorlist=https/g /etc/yum.repos.d/*.repo \' >> Dockerfile
+      echo ' && yum -y install lksctp-tools xorg-x11-server-Xorg xorg-x11-xauth xorg-x11-apps libXtst sudo git \' >> Dockerfile
       echo ' && yum clean all \' >> Dockerfile
       echo ' && usermod -p "" root \' >> Dockerfile
       if [ ! "$DOCKER_CONTAINER_USER" == "root" ]; then
