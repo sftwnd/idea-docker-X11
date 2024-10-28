@@ -26,8 +26,11 @@ DOCKER_CONTAINER_USER=idea
 DISPLAY_HOST=docker.for.mac.host.internal
 # DISPLAY_ID=0
 
-# 21.0.1-12-cds, 17.0.9-11-cds, 11.0.21-10-cds, 8u392-9-cds
-BELLSOFT_JAVA_TAG=21.0.1-12-cds
+# 21.0.5-11-cds, 21.0.5-11, 21-cds, 21
+# 17.0.13-12-cds, 17.0.13-12, 17-cds, 17 
+# 11.0.25-11-cds, 11.0.25-11, 11-cds, 11
+# 8u432-7-cds, 8u432-7, 8-cds, 8 
+BELLSOFT_JAVA_TAG=21-cds
 BASE_DOCKER_IMAGE=bellsoft/liberica-openjdk-centos:$BELLSOFT_JAVA_TAG
 
 # DOCKER_CONTAINER_START_OPTION=-it
