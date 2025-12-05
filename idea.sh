@@ -2,9 +2,7 @@
 
 # export PS1="\[\e[0;33m\]idea\[\e[0m\]@\[\e[0;32m\]docker\[\e[0m\]:\[\e[0;34m\]\w\[\e[0m\]\$"
 
-# DOCKER_CONTAINER_USER=
 DOCKER_CONTAINER_USER=idea
-# DOCKER_CONTAINER_USER=root
 
 # PROJECTS_PATH=
 # MAVEN_VERSION=
@@ -26,12 +24,8 @@ DOCKER_CONTAINER_USER=idea
 DISPLAY_HOST=docker.for.mac.host.internal
 # DISPLAY_ID=0
 
-# 21.0.5-11-cds, 21.0.5-11, 21-cds, 21
-# 17.0.13-12-cds, 17.0.13-12, 17-cds, 17 
-# 11.0.25-11-cds, 11.0.25-11, 11-cds, 11
-# 8u432-7-cds, 8u432-7, 8-cds, 8 
-BELLSOFT_JAVA_TAG=21-cds
-BASE_DOCKER_IMAGE=bellsoft/liberica-openjdk-centos:$BELLSOFT_JAVA_TAG
+CENTOS9_TAG=latest
+BASE_DOCKER_IMAGE=dokken/centos-stream-9:$CENTOS9_TAG
 
 # DOCKER_CONTAINER_START_OPTION=-it
 DOCKER_CONTAINER_START_OPTION=-d
@@ -199,7 +193,8 @@ else
   # https://download.oracle.com/otn-pub/java/jdk/11.0.22+9/8662aac2120442c2a89b1ee9c67d7069/jdk-11.0.22_doc-all.zip
   # https://download.oracle.com/otn_software/java/jdk/17.0.10+11/a473b47039a34b169d45b00685dea3dd/jdk-17.0.10_doc-all.zip
   # https://download.oracle.com/otn_software/java/jdk/21.0.2+13/f2283984656d49d69e91c558476027ac/jdk-21.0.2_doc-all.zip
-  JDK_VERSION=$(echo $BELLSOFT_JAVA_TAG|sed -E 's/^(..).*/\1/p'|head -n1|xargs)
+  # JDK_VERSION=$(echo $BELLSOFT_JAVA_TAG|sed -E 's/^(..).*/\1/p'|head -n1|xargs)
+  JDK_VERSION=17
   if [ "$JDK_VERSION" == "8u" ]; then
     load_document https://download.oracle.com/otn-pub/java/jdk/8u401-b10/4d245f941845490c91360409ecffb3b4/jdk-8u401-docs-all.zip "" docs
     load_document https://download.oracle.com/otn-pub/java/javafx/8.0.401-b10/4d245f941845490c91360409ecffb3b4/javafx-8u401-apidocs.zip "" docs
@@ -209,8 +204,7 @@ else
     load_document https://download.oracle.com/otn_software/java/jdk/17.0.10+11/a473b47039a34b169d45b00685dea3dd/jdk-17.0.10_doc-all.zip "" docs
   else
     load_document https://download.oracle.com/otn_software/java/jdk/21.0.2+13/f2283984656d49d69e91c558476027ac/jdk-21.0.2_doc-all.zip "" docs
-  fi  
-
+  fi
 
   # Identify IDEA Version
   if [ "$IDEA_BUILD" == "" ] || [ "$IDEA_VERSION" == "" ]; then
@@ -277,11 +271,9 @@ else
       echo FROM $BASE_DOCKER_IMAGE > Dockerfile
       echo USER root >> Dockerfile
 
-      echo 'RUN sed -i s/mirror.centos.org/vault.centos.org/g /etc/yum.repos.d/*.repo \' >> Dockerfile
-      echo ' && sed -i s/^#.*baseurl=http/baseurl=https/g /etc/yum.repos.d/*.repo \' >> Dockerfile
-      echo ' && sed -i s/^mirrorlist=http/#mirrorlist=https/g /etc/yum.repos.d/*.repo \' >> Dockerfile
-      echo ' && yum -y install lksctp-tools xorg-x11-server-Xorg xorg-x11-xauth xorg-x11-apps libXtst sudo git \' >> Dockerfile
-      echo ' && yum clean all \' >> Dockerfile
+      echo 'RUN dnf -y update \' >> Dockerfile
+      echo ' && dnf -y install lksctp-tools xauth libXtst sudo git java-17-openjdk-devel xterm \' >> Dockerfile
+      echo ' && dnf clean all \' >> Dockerfile
       echo ' && usermod -p "" root \' >> Dockerfile
       if [ ! "$DOCKER_CONTAINER_USER" == "root" ]; then
         echo " && groupadd -g $GROUPID -f staff \\" >> Dockerfile
@@ -302,8 +294,8 @@ else
       echo ' && rm -rf /tmp/* \' >> Dockerfile
       echo ' && chmod a+x /opt/entry' >> Dockerfile
       echo USER $DOCKER_CONTAINER_USER >> Dockerfile
-      echo "ENV M2_HOME $DOCKER_CONTAINER_USER_HOME/.m2" >> Dockerfile
-      echo ENV MAVEN_HOME /opt/apache-maven >> Dockerfile
+      echo "ENV M2_HOME=$DOCKER_CONTAINER_USER_HOME/.m2" >> Dockerfile
+      echo ENV MAVEN_HOME=/opt/apache-maven >> Dockerfile
       echo ENV MAVEN_OPTS=-Xms128m >> Dockerfile
       echo ENV LOCALE=en_RU.UTF-8 >> Dockerfile
       if [ "$DISPLAY_ID" == "" ]; then
