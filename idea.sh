@@ -227,7 +227,7 @@ else
   if [ ! -d "$MAVEN_NAME" ]; then
     if [ ! -f "$MAVEN_FILE_NAME" ]; then
       echo Download Maven distributive: $MAVEN_FILE_NAME
-      load_document "https://www.apache.org/dist/maven/maven-3/$MAVEN_VERSION/binaries/$MAVEN_FILE_NAME"
+      load_document "https://archive.apache.org/dist/maven/maven-3/$MAVEN_VERSION/binaries/$MAVEN_FILE_NAME"
     else
       echo Maven distributive already exists: $MAVEN_FILE_NAME
     fi
