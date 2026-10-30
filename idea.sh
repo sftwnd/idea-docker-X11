@@ -156,7 +156,7 @@ else
   # Identify Maven Version
   if [ "$MAVEN_VERSION" == "" ]; then
     check curl
-    MAVEN_VERSION="$(curl https://archive.apache.org/dist/maven/maven-3/ 2>/dev/null|grep -E 'href=\"\d+\.\d+\.\d+\/\"'|sed -nE 's/^.*href="(.*)\/".*$/\1/p'|sort -r|head -n1)"
+    MAVEN_VERSION="$(curl https://archive.apache.org/dist/maven/maven-3/ 2>/dev/null|grep -E 'href=\"\d+\.\d+\.\d+\/\"'|sed -nE 's/^.*href="(.*)\/".*$/\1/p'|sort -rV|head -n1)"
   fi
   MAVEN_NAME=apache-maven-$MAVEN_VERSION
   MAVEN_FILE_NAME=apache-maven-"$MAVEN_VERSION"-bin.tar.gz
@@ -164,13 +164,13 @@ else
 
   # Load Gradle (if defined)
   if [ "${GRADLE_VERSION}" == "" ]; then
-    GRADLE_VERSION=$(curl https://services.gradle.org/distributions-snapshots/ 2>/dev/null|grep -e "^.*href.*-bin\.zip"|sed -E "s/^.*gradle-(.*)-(.+)-bin.*/\1/p"|grep -E "^(\d+\.)+\d+$"|uniq|sort -r|head -n1|xargs)
+    GRADLE_VERSION=$(curl https://services.gradle.org/distributions-snapshots/ 2>/dev/null|grep -e "^.*href.*-bin\.zip"|sed -E "s/^.*gradle-(.*)-(.+)-bin.*/\1/p"|grep -E "^(\d+\.)+\d+$"|uniq|sort -rV|head -n1|xargs)
     echo Gradle version: $GRADLE_VERSION
   fi
   if [ ! "${GRADLE_VERSION}" == "" ]; then
     if [ "${GRADLE_BUILD}" == "" ]; then
       check curl
-      GRADLE_BUILD=$(curl https://services.gradle.org/distributions-snapshots/ 2>/dev/null|grep ">gradle-${GRADLE_VERSION}-"|grep -E "gradle-${GRADLE_VERSION}-\d+\+\d+-bin\.zip<"| sed -E "s/^.*gradle-.*-(.+)-bin.*/\1/p"|uniq|sort -r|head -n1|xargs)
+      GRADLE_BUILD=$(curl https://services.gradle.org/distributions-snapshots/ 2>/dev/null|grep ">gradle-${GRADLE_VERSION}-"|grep -E "gradle-${GRADLE_VERSION}-\d+\+\d+-bin\.zip<"| sed -E "s/^.*gradle-.*-(.+)-bin.*/\1/p"|uniq|sort -rV|head -n1|xargs)
       echo Gradle build: $GRADLE_BUILD
     fi
     if [ ! "${GRADLE_BUILD}" == "" ]; then
@@ -221,7 +221,7 @@ else
   if [ "$IDEA_NAME" == "" ] && { [ "$IDEA_BUILD" == "" ] || [ "$IDEA_VERSION" == "" ]; }; then
     if [ "$IDEA_RELEASE" == "" ]; then
       check curl
-      IDEA_RELEASE="$(curl https://www.jetbrains.com/updates/updates.xml 2> /dev/null| grep "IntelliJ IDEA RELEASE" -A 3|grep "build number"|sed -E 's/^.*version="(.*)" release.*fullNumber="(.*)".*$/\1@\2/p'|sort -r|head -n1)"
+      IDEA_RELEASE="$(curl https://www.jetbrains.com/updates/updates.xml 2> /dev/null| grep "IntelliJ IDEA RELEASE" -A 3|grep "build number"|sed -E 's/^.*version="(.*)" release.*fullNumber="(.*)".*$/\1@\2/p'|sort -rV|head -n1)"
     fi
     if [ "$IDEA_BUILD" == "" ]; then
       IDEA_BUILD="$(echo $IDEA_RELEASE|sed -nE 's/^.*@(.*)$/\1/p')"
