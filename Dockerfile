@@ -6,11 +6,12 @@ FROM ${BASE_IMAGE}
 ARG USER_NAME=idea
 ARG USER_UID=1000
 ARG USER_GID=1000
-ARG JDK_PACKAGE=java-21-openjdk-devel
+ARG JDK_PACKAGE=java-25-openjdk-devel
 
+# lksctp-tools is the SCTP userland (libsctp.so.1 for jdk.sctp, checksctp); iproute and procps-ng give ip, ss and sysctl
 # The user gets the host UID and GID; an existing group with that GID is reused
 RUN dnf -y update \
- && dnf -y install findutils lksctp-tools xorg-x11-xauth libXtst sudo git xterm "${JDK_PACKAGE}" \
+ && dnf -y install findutils lksctp-tools iproute procps-ng xorg-x11-xauth libXtst sudo git xterm "${JDK_PACKAGE}" \
  && dnf clean all \
  && if ! getent group "${USER_GID}" > /dev/null; then groupadd -g "${USER_GID}" "${USER_NAME}"; fi \
  && useradd -m -u "${USER_UID}" -g "${USER_GID}" -G wheel "${USER_NAME}" \
