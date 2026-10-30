@@ -62,7 +62,7 @@ done
 : "${IDEA_HOSTNAME:=}"                   # intellij-idea-<edition> if empty
 : "${IDEA_DISPLAY:=}"                    # host.docker.internal:0 on macOS, $DISPLAY on Linux
 : "${IDEA_PORTS:=}"                      # published ports, e.g. "8080:8080 5005:5005"
-: "${IDEA_GITCONFIG:=$HOME/.gitconfig}"  # mounted read-only if the file exists, empty to disable
+: "${IDEA_GITCONFIG:=$HOME/.gitconfig}"  # included into the container git configuration, empty to disable
 : "${IDEA_DOCKER_OPTIONS:=}"             # extra options of docker create
 
 for LEGACY in PROJECTS_PATH DEFAULT_IDEA_CODE IDEA_VERSION IDEA_BUILD DOCKER_IMAGE_NAME DOCKER_IMAGE_VERSION \
@@ -406,7 +406,7 @@ if [ -n "$GRADLE_HOME" ]; then
   CREATE_OPTIONS+=(--mount "type=bind,source=$PWD/$GRADLE_HOME,target=/opt/gradle")
 fi
 if [ -n "$IDEA_GITCONFIG" ] && [ -f "$IDEA_GITCONFIG" ]; then
-  CREATE_OPTIONS+=(--mount "type=bind,source=$IDEA_GITCONFIG,target=$USER_HOME/.gitconfig,readonly")
+  CREATE_OPTIONS+=(--mount "type=bind,source=$IDEA_GITCONFIG,target=$USER_HOME/.gitconfig-host,readonly")
 fi
 if [ "$DOCKER_OS" == "Docker Desktop" ]; then
   # Docker Desktop forwards the host SSH agent through a socket that belongs to root:root

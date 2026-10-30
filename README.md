@@ -48,7 +48,7 @@ Settings are environment variables. The `IDEA_` prefix keeps host variables such
 | `IDEA_HOSTNAME` | `intellij-idea-<edition>` | container hostname |
 | `IDEA_DISPLAY` | `host.docker.internal:0` | X display of the container (`$DISPLAY` on Linux) |
 | `IDEA_PORTS` | | published ports, e.g. `"8080:8080 5005:5005"` |
-| `IDEA_GITCONFIG` | `~/.gitconfig` | git configuration mounted read-only; empty to disable |
+| `IDEA_GITCONFIG` | `~/.gitconfig` | host git configuration included into the container one; empty to disable |
 | `IDEA_DOCKER_OPTIONS` | | extra options of `docker create` |
 
 ## Container
@@ -62,8 +62,9 @@ Settings are environment variables. The `IDEA_` prefix keeps host variables such
 | **~/.m2** | `~/.m2` |
 | **~/docs** | `docs` with the JDK API documentation |
 | **~** | the docker volume `<container>-home`: IDE settings, plugins, caches, `~/.gradle`, `~/.jdks` |
+| **~/.gitconfig-host** | `IDEA_GITCONFIG`, read-only |
 
-The entry point launches IntelliJ IDEA; `docker stop` shuts it down gracefully. The X server is accessed with the XQuartz cookie, so the `xhost` access control stays enabled. Docker Desktop forwards the SSH agent of macOS (the launchd one) into the container.
+The entry point launches IntelliJ IDEA; `docker stop` shuts it down gracefully. The X server is accessed with the XQuartz cookie, so the `xhost` access control stays enabled. Docker Desktop forwards the SSH agent of macOS (the launchd one) into the container. On the first start the container gets `~/.gitconfig`, which includes the host configuration and replaces its credential helpers (macOS programs such as osxkeychain) with the git credential cache.
 
 ## Updating IntelliJ IDEA
 
