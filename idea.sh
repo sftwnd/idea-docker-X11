@@ -32,7 +32,7 @@ DOCKER_CONTAINER_START_OPTION=-d
 # DOCKER_CONTAINER_ADDITIONAL_OPTION=--rm
 
 if [ "$DEFAULT_IDEA_CODE" == "" ]; then
-  DEFAULT_IDEA_CODE=IC
+  DEFAULT_IDEA_CODE=IU
 fi
 
 # ############################################################ #
@@ -63,19 +63,20 @@ if [ ! -d "$PROJECTS_PATH" ]; then
   mkdir -p "$PROJECTS_PATH"
 fi
 
-if [ "$DOCKER_CONTAINER_NAME" == "" ] && [ "$IDEA_CODE" == "" ]; then
-  if [ "$(docker ps -a --filter="ancestor=$DOCKER_IMAGE_NAME:$DOCKER_IMAGE_VERSION" --format="table{{.Names}}"|grep -v NAMES|wc -l|xargs)" == "1" ]; then
-    DOCKER_CONTAINER_NAME=$(docker ps -a --filter="ancestor=$DOCKER_IMAGE_NAME:$DOCKER_IMAGE_VERSION" --format="table{{.Names}}"|grep -v NAMES|xargs)
-  elif [ "$(docker ps -a --filter="ancestor=$DOCKER_IMAGE_NAME:$DOCKER_IMAGE_VERSION" --filter="name=idea-$DEFAULT_IDEA_CODE" --format="table{{.Names}}"|grep -v NAMES|wc -l|xargs)" == "1" ]; then
-    DOCKER_CONTAINER_NAME=$(docker ps -a --filter="ancestor=$DOCKER_IMAGE_NAME:$DOCKER_IMAGE_VERSION" --filter="name=idea-$DEFAULT_IDEA_CODE" --format="table{{.Names}}"|grep -v NAMES|xargs)
-  fi
-  if [ ! "$DOCKER_CONTAINER_NAME" == "" ]; then
-    echo Found docker container: $DOCKER_CONTAINER_NAME
-    if [ ! "$(docker ps|grep -E "^.*$DOCKER_IMAGE_NAME\:$DOCKER_IMAGE_VERSION\s+.*$DOCKER_CONTAINER_NAME\s*"|wc -l|xargs)" == 0 ]; then
-      echo IDEA Container is already started
-      exit -1;
-    fi;
-  fi;
+# Newest local IDEA installation of the given editions (IU wins over IC with the same build)
+latest_idea_home() {
+  for IDEA_HOME_CODE in "$@"; do
+    for IDEA_HOME in idea-"$IDEA_HOME_CODE"-*; do
+      if [ -f "$IDEA_HOME/bin/idea.sh" ]; then
+        echo "$IDEA_HOME"
+      fi
+    done
+  done|sed -E 's/^idea-(I[CU])-(.*)$/\2 \1 &/'|sort -V|tail -n1|cut -d' ' -f3
+}
+
+# Without an argument the edition of the newest local installation is used
+if [ "$IDEA_CODE" == "" ]; then
+  IDEA_CODE="$(latest_idea_home IC IU|sed -E 's/^idea-(I[CU])-.*$/\1/')"
 fi
 
 if [ "$IDEA_CODE" == "" ]; then
@@ -89,8 +90,14 @@ if [ "$DOCKER_CONTAINER_NAME" == "" ]; then
 fi
 
 
-if [ ! "$(docker ps --filter="ancestor=$DOCKER_IMAGE_NAME:$DOCKER_IMAGE_VERSION" --format="table{{.Names}}"|grep -v NAMES|wc -l|xargs)" == "0" ]; then
-  echo IDEA Container is already started: "$(docker ps --filter="ancestor=$DOCKER_IMAGE_NAME:$DOCKER_IMAGE_VERSION" --format="table{{.Names}}"|grep -v NAMES|xargs)"
+# Running IDEA containers: by image and by name, because containers created
+# from a previous build of the image are not matched by the ancestor filter
+RUNNING_CONTAINERS="$({
+  docker ps --filter "ancestor=$DOCKER_IMAGE_NAME:$DOCKER_IMAGE_VERSION" --format "{{.Names}}"
+  docker ps --filter "name=^idea-I[CU]$" --filter "name=^$DOCKER_CONTAINER_NAME$" --format "{{.Names}}"
+}|sort -u|xargs)"
+if [ ! "$RUNNING_CONTAINERS" == "" ]; then
+  echo IDEA Container is already started: "$RUNNING_CONTAINERS"
   exit -1;  
 fi
 
@@ -139,7 +146,7 @@ load_document() {
 }
 
 
-if [ ! "$(docker ps -a|grep -E "^.*$DOCKER_IMAGE_NAME\:$DOCKER_IMAGE_VERSION\s+.*$DOCKER_CONTAINER_NAME\s*"|wc -l|xargs)" == "0" ]; then
+if docker container inspect "$DOCKER_CONTAINER_NAME" > /dev/null 2>&1; then
   echo Start existed container: $DOCKER_CONTAINER_NAME
   xhost + > /dev/null
   docker start "$DOCKER_CONTAINER_NAME"
@@ -149,7 +156,7 @@ else
   # Identify Maven Version
   if [ "$MAVEN_VERSION" == "" ]; then
     check curl
-    MAVEN_VERSION="$(curl https://archive.apache.org/dist/maven/maven-3/ 2>/dev/null|grep -E 'href=\"\d+\.\d+\.\d+\/\"'|sed -nE 's/^.*href="(.*)\/".*$/\1/p'|sort -r|head -n1)"
+    MAVEN_VERSION="$(curl https://archive.apache.org/dist/maven/maven-3/ 2>/dev/null|grep -E 'href=\"\d+\.\d+\.\d+\/\"'|sed -nE 's/^.*href="(.*)\/".*$/\1/p'|sort -rV|head -n1)"
   fi
   MAVEN_NAME=apache-maven-$MAVEN_VERSION
   MAVEN_FILE_NAME=apache-maven-"$MAVEN_VERSION"-bin.tar.gz
@@ -157,13 +164,13 @@ else
 
   # Load Gradle (if defined)
   if [ "${GRADLE_VERSION}" == "" ]; then
-    GRADLE_VERSION=$(curl https://services.gradle.org/distributions-snapshots/ 2>/dev/null|grep -e "^.*href.*-bin\.zip"|sed -E "s/^.*gradle-(.*)-(.+)-bin.*/\1/p"|grep -E "^(\d+\.)+\d+$"|uniq|sort -r|head -n1|xargs)
+    GRADLE_VERSION=$(curl https://services.gradle.org/distributions-snapshots/ 2>/dev/null|grep -e "^.*href.*-bin\.zip"|sed -E "s/^.*gradle-(.*)-(.+)-bin.*/\1/p"|grep -E "^(\d+\.)+\d+$"|uniq|sort -rV|head -n1|xargs)
     echo Gradle version: $GRADLE_VERSION
   fi
   if [ ! "${GRADLE_VERSION}" == "" ]; then
     if [ "${GRADLE_BUILD}" == "" ]; then
       check curl
-      GRADLE_BUILD=$(curl https://services.gradle.org/distributions-snapshots/ 2>/dev/null|grep ">gradle-${GRADLE_VERSION}-"|grep -E "gradle-${GRADLE_VERSION}-\d+\+\d+-bin\.zip<"| sed -E "s/^.*gradle-.*-(.+)-bin.*/\1/p"|uniq|sort -r|head -n1|xargs)
+      GRADLE_BUILD=$(curl https://services.gradle.org/distributions-snapshots/ 2>/dev/null|grep ">gradle-${GRADLE_VERSION}-"|grep -E "gradle-${GRADLE_VERSION}-\d+\+\d+-bin\.zip<"| sed -E "s/^.*gradle-.*-(.+)-bin.*/\1/p"|uniq|sort -rV|head -n1|xargs)
       echo Gradle build: $GRADLE_BUILD
     fi
     if [ ! "${GRADLE_BUILD}" == "" ]; then
@@ -206,11 +213,15 @@ else
     load_document https://download.oracle.com/otn_software/java/jdk/21.0.2+13/f2283984656d49d69e91c558476027ac/jdk-21.0.2_doc-all.zip "" docs
   fi
 
-  # Identify IDEA Version
-  if [ "$IDEA_BUILD" == "" ] || [ "$IDEA_VERSION" == "" ]; then
+  # Identify IDEA Version: the newest local installation of the edition, unless a release is set explicitly
+  IDEA_NAME=
+  if [ "$IDEA_RELEASE$IDEA_BUILD$IDEA_VERSION" == "" ]; then
+    IDEA_NAME="$(latest_idea_home "$IDEA_CODE")"
+  fi
+  if [ "$IDEA_NAME" == "" ] && { [ "$IDEA_BUILD" == "" ] || [ "$IDEA_VERSION" == "" ]; }; then
     if [ "$IDEA_RELEASE" == "" ]; then
       check curl
-      IDEA_RELEASE="$(curl https://www.jetbrains.com/updates/updates.xml 2> /dev/null| grep "IntelliJ IDEA RELEASE" -A 3|grep "build number"|sed -E 's/^.*version="(.*)" release.*fullNumber="(.*)".*$/\1@\2/p'|sort -r|head -n1)"
+      IDEA_RELEASE="$(curl https://www.jetbrains.com/updates/updates.xml 2> /dev/null| grep "IntelliJ IDEA RELEASE" -A 3|grep "build number"|sed -E 's/^.*version="(.*)" release.*fullNumber="(.*)".*$/\1@\2/p'|sort -rV|head -n1)"
     fi
     if [ "$IDEA_BUILD" == "" ]; then
       IDEA_BUILD="$(echo $IDEA_RELEASE|sed -nE 's/^.*@(.*)$/\1/p')"
@@ -219,9 +230,17 @@ else
       IDEA_VERSION="$(echo $IDEA_RELEASE|sed -nE 's/^(.*)@.*$/\1/p')"
     fi
   fi
-  IDEA_NAME=idea-"$IDEA_CODE"-"$IDEA_BUILD"
-  IDEA_FILE_NAME=idea"$IDEA_CODE"-"$IDEA_VERSION".tar.gz
-  echo IDEA version: $IDEA_VERSION, name: $IDEA_NAME, file: $IDEA_FILE_NAME
+  if [ "$IDEA_NAME" == "" ]; then
+    # Since 2025.3 JetBrains ships a single unified distribution: idea-<version>.tar.gz unpacks into idea-IU-<build>
+    if [ "$(printf '%s\n' 2025.3 "$IDEA_VERSION"|sort -V|head -n1)" == "2025.3" ]; then
+      IDEA_NAME=idea-IU-"$IDEA_BUILD"
+      IDEA_FILE_NAME=idea-"$IDEA_VERSION".tar.gz
+    else
+      IDEA_NAME=idea-"$IDEA_CODE"-"$IDEA_BUILD"
+      IDEA_FILE_NAME=idea"$IDEA_CODE"-"$IDEA_VERSION".tar.gz
+    fi
+    echo IDEA version: $IDEA_VERSION, name: $IDEA_NAME, file: $IDEA_FILE_NAME
+  fi
     
   
   if [ ! -d "$MAVEN_NAME" ]; then
@@ -264,7 +283,7 @@ else
   USRID=$(id -u $USER)
   GROUPID=$(id -g $USER)
       
-  if [ "$(docker images|grep "^$DOCKER_IMAGE_NAME\s*$DOCKER_IMAGE_VERSION\s.*$"|wc -l|xargs)" == "0" ]; then
+  if ! docker image inspect "$DOCKER_IMAGE_NAME:$DOCKER_IMAGE_VERSION" > /dev/null 2>&1; then
     
     if [ ! -f "Dockerfile" ]; then
 
