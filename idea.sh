@@ -54,7 +54,7 @@ done
 : "${IDEA_DEFAULT_CODE:=IU}"             # edition when there is no local installation
 : "${IDEA_MAVEN_VERSION:=}"              # latest Maven 3 if empty
 : "${IDEA_GRADLE_VERSION:=}"             # latest release if empty, "none" to skip, or a nightly build
-: "${IDEA_JDK_VERSION:=21}"
+: "${IDEA_JDK_VERSION:=25}"
 : "${IDEA_BASE_IMAGE:=quay.io/centos/centos:stream10}"
 : "${IDEA_IMAGE:=idea:latest}"
 : "${IDEA_USER:=idea}"
@@ -63,6 +63,12 @@ done
 : "${IDEA_DISPLAY:=}"                    # host.docker.internal:0 on macOS, $DISPLAY on Linux
 : "${IDEA_PORTS:=}"                      # published ports, e.g. "8080:8080 5005:5005"
 : "${IDEA_GITCONFIG:=$HOME/.gitconfig}"  # included into the container git configuration, empty to disable
+# Container profile, fixed when the container is created; a value that is set but empty is not passed to Docker.
+# SCTP over UDP is off until the ports are set: uncomment the lines or export the variables.
+: "${IDEA_PRIVILEGED:=true}"             # --privileged: sysctl -w and ip netns work inside the container
+: "${IDEA_SCTP_AUTH_ENABLE=1}"           # net.sctp.auth_enable, 0 or 1
+#: "${IDEA_SCTP_UDP_PORT=9899}"          # net.sctp.udp_port: UDP port to receive SCTP over UDP on, 0 disables
+#: "${IDEA_SCTP_ENCAP_PORT=9899}"        # net.sctp.encap_port: UDP port to send SCTP over UDP to, 0 disables
 : "${IDEA_DOCKER_OPTIONS:=}"             # extra options of docker create
 
 for LEGACY in PROJECTS_PATH DEFAULT_IDEA_CODE IDEA_VERSION IDEA_BUILD DOCKER_IMAGE_NAME DOCKER_IMAGE_VERSION \
@@ -79,6 +85,22 @@ case "$IDEA_RELEASE" in
   ""|[0-9]*@[0-9]*) ;;
   *) die "IDEA_RELEASE must be <version>@<build>, e.g. 2025.2@252.23892.409" ;;
 esac
+case "$IDEA_PRIVILEGED" in
+  true|false) ;;
+  *) die "IDEA_PRIVILEGED must be true or false" ;;
+esac
+case "${IDEA_SCTP_AUTH_ENABLE:-}" in
+  ""|0|1) ;;
+  *) die "IDEA_SCTP_AUTH_ENABLE must be 0 or 1" ;;
+esac
+# A port is a decimal number up to 65535 without leading zeros, which the kernel would read as octal
+for SCTP_PORT in IDEA_SCTP_UDP_PORT IDEA_SCTP_ENCAP_PORT; do
+  case "${!SCTP_PORT:-}" in
+    "") ;;
+    *[!0-9]*|??????*|0?*) die "$SCTP_PORT must be a port number" ;;
+    *) [ "${!SCTP_PORT}" -le 65535 ] || die "$SCTP_PORT must be a port number" ;;
+  esac
+done
 
 for TOOL in docker curl tar unzip; do
   command -v "$TOOL" > /dev/null || die "$TOOL is required"
@@ -259,9 +281,32 @@ if [ -n "$RUNNING_CONTAINERS" ]; then
   die "IntelliJ IDEA is already running: $RUNNING_CONTAINERS"
 fi
 
+# The SCTP sysctls of the container; an empty value is skipped
+SCTP_SYSCTLS=()
+add_sctp_sysctl() {
+  if [ -n "$2" ]; then
+    SCTP_SYSCTLS+=("net.sctp.$1=$2")
+  fi
+}
+add_sctp_sysctl auth_enable "${IDEA_SCTP_AUTH_ENABLE:-}"
+add_sctp_sysctl udp_port "${IDEA_SCTP_UDP_PORT:-}"
+add_sctp_sysctl encap_port "${IDEA_SCTP_ENCAP_PORT:-}"
+
+# The privileged flag and the SCTP sysctls on one sorted line: of the settings, and of the existing container
+settings_profile() {
+  { echo "privileged=$IDEA_PRIVILEGED"; printf '%s\n' ${SCTP_SYSCTLS[@]+"${SCTP_SYSCTLS[@]}"}; } | grep . | LC_ALL=C sort | xargs
+}
+container_profile() {
+  docker container inspect --format 'privileged={{.HostConfig.Privileged}}{{range $key, $value := .HostConfig.Sysctls}} {{$key}}={{$value}}{{end}}' \
+    "$IDEA_CONTAINER" | tr ' ' '\n' | grep -E '^(privileged=|net\.sctp\.)' | LC_ALL=C sort | xargs
+}
+
 if docker container inspect "$IDEA_CONTAINER" > /dev/null 2>&1; then
   if [ "$REBUILD" == 1 ]; then
     warn "--rebuild does not change the existing container $IDEA_CONTAINER, remove it to create a new one"
+  fi
+  if [ "$(container_profile)" != "$(settings_profile)" ]; then
+    warn "the container $IDEA_CONTAINER has $(container_profile), the settings are $(settings_profile), remove it to create a new one"
   fi
   log "Start the existing container $IDEA_CONTAINER"
   start_container "$(container_xauth_target)"
@@ -297,7 +342,7 @@ if [ "$IDEA_GRADLE_VERSION" != none ]; then
   install_dist "$GRADLE_HOME" bin/gradle "$GRADLE_URL" "$GRADLE_URL.sha256" 256
 fi
 
-# JDK: the package in the image and its API documentation (only 17 and 21 are downloadable without an Oracle account)
+# JDK: the package in the image and its API documentation (only 17, 21 and 25 are downloadable without an Oracle account)
 case "$IDEA_JDK_VERSION" in
   8|1.8) JDK_PACKAGE=java-1.8.0-openjdk-devel ;;
   *) JDK_PACKAGE="java-$IDEA_JDK_VERSION-openjdk-devel" ;;
@@ -305,6 +350,7 @@ esac
 case "$IDEA_JDK_VERSION" in
   17) DOCS_URL=https://download.oracle.com/otn_software/java/jdk/17.0.10+11/a473b47039a34b169d45b00685dea3dd/jdk-17.0.10_doc-all.zip ;;
   21) DOCS_URL=https://download.oracle.com/otn_software/java/jdk/21.0.2+13/f2283984656d49d69e91c558476027ac/jdk-21.0.2_doc-all.zip ;;
+  25) DOCS_URL=https://download.oracle.com/otn_software/java/jdk/25.0.5.0.2+1/44b71484ae7249ee9ede9b5653dc3fa7/jdk-25.0.5.0.2_doc-all.zip ;;
   *) DOCS_URL= ;;
 esac
 run mkdir -p docs
@@ -420,6 +466,12 @@ if [ "$(uname -s)" != Darwin ] && [ -d /tmp/.X11-unix ]; then
 fi
 for PORT in $IDEA_PORTS; do
   CREATE_OPTIONS+=(-p "$PORT")
+done
+if [ "$IDEA_PRIVILEGED" == true ]; then
+  CREATE_OPTIONS+=(--privileged)
+fi
+for SCTP_SYSCTL in ${SCTP_SYSCTLS[@]+"${SCTP_SYSCTLS[@]}"}; do
+  CREATE_OPTIONS+=(--sysctl "$SCTP_SYSCTL")
 done
 read -r -a EXTRA_OPTIONS <<< "$IDEA_DOCKER_OPTIONS"
 CREATE_OPTIONS+=(${EXTRA_OPTIONS[@]+"${EXTRA_OPTIONS[@]}"})
