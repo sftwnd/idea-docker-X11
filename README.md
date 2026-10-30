@@ -15,7 +15,7 @@ The suggested script does the following:
 * builds the docker image from the [Dockerfile](Dockerfile) when it is missing or its inputs have changed
 * creates the container and launches IntelliJ IDEA on the XQuartz display
 
-The base image is _quay.io/centos/centos:stream9_. The image adds lksctp-tools, a JDK (21 by default), git, sudo, xauth, libXtst and xterm. IntelliJ IDEA, Maven and Gradle stay on the host and are mounted into the container.
+The base image is _quay.io/centos/centos:stream10_. The image adds lksctp-tools, a JDK (21 by default), git, sudo, xauth, libXtst and xterm. IntelliJ IDEA, Maven and Gradle stay on the host and are mounted into the container.
 
 ## Usage
 
@@ -40,8 +40,8 @@ Settings are environment variables. The `IDEA_` prefix keeps host variables such
 | `IDEA_DEFAULT_CODE` | `IU` | edition when there is no local installation |
 | `IDEA_MAVEN_VERSION` | latest 3.x | Maven version |
 | `IDEA_GRADLE_VERSION` | latest release | Gradle version, `none` to skip Gradle, or a nightly build such as `9.10.0-20261030002218+0000` |
-| `IDEA_JDK_VERSION` | `21` | JDK in the image (`java-<version>-openjdk-devel`); the documentation is downloaded for 17 and 21 |
-| `IDEA_BASE_IMAGE` | `quay.io/centos/centos:stream9` | base image |
+| `IDEA_JDK_VERSION` | `21` | JDK in the image (`java-<version>-openjdk-devel`): 21 or 25 on CentOS Stream 10, 17 needs the Stream 9 base image; the documentation is downloaded for 17 and 21 |
+| `IDEA_BASE_IMAGE` | `quay.io/centos/centos:stream10` | base image |
 | `IDEA_IMAGE` | `idea:latest` | image name |
 | `IDEA_USER` | `idea` | container user; it gets the host UID and GID and passwordless sudo |
 | `IDEA_CONTAINER` | `idea-<edition>` | container name |

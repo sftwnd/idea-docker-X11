@@ -1,6 +1,6 @@
 # IntelliJ IDEA runtime: CentOS Stream with a JDK, SCTP support and X11 client libraries.
 # IDEA, Maven and Gradle are not part of the image, idea.sh mounts them from the host.
-ARG BASE_IMAGE=quay.io/centos/centos:stream9
+ARG BASE_IMAGE=quay.io/centos/centos:stream10
 FROM ${BASE_IMAGE}
 
 ARG USER_NAME=idea
@@ -10,7 +10,7 @@ ARG JDK_PACKAGE=java-21-openjdk-devel
 
 # The user gets the host UID and GID; an existing group with that GID is reused
 RUN dnf -y update \
- && dnf -y install findutils lksctp-tools xauth libXtst sudo git xterm "${JDK_PACKAGE}" \
+ && dnf -y install findutils lksctp-tools xorg-x11-xauth libXtst sudo git xterm "${JDK_PACKAGE}" \
  && dnf clean all \
  && if ! getent group "${USER_GID}" > /dev/null; then groupadd -g "${USER_GID}" "${USER_NAME}"; fi \
  && useradd -m -u "${USER_UID}" -g "${USER_GID}" -G wheel "${USER_NAME}" \
