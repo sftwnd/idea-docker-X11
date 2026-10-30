@@ -1,9 +1,9 @@
 # Distributions downloaded by idea.sh and its working files
 apache-maven-*
 gradle-*
-idea-I[CU]-*
+idea-I?-*
 idea-*.tar.gz
-ideaI[CU]-*.tar.gz
+ideaI?-*.tar.gz
 *.part
 *.tmp/
 docs/
