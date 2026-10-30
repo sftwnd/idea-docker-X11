@@ -90,8 +90,14 @@ if [ "$DOCKER_CONTAINER_NAME" == "" ]; then
 fi
 
 
-if [ ! "$(docker ps --filter="ancestor=$DOCKER_IMAGE_NAME:$DOCKER_IMAGE_VERSION" --format="table{{.Names}}"|grep -v NAMES|wc -l|xargs)" == "0" ]; then
-  echo IDEA Container is already started: "$(docker ps --filter="ancestor=$DOCKER_IMAGE_NAME:$DOCKER_IMAGE_VERSION" --format="table{{.Names}}"|grep -v NAMES|xargs)"
+# Running IDEA containers: by image and by name, because containers created
+# from a previous build of the image are not matched by the ancestor filter
+RUNNING_CONTAINERS="$({
+  docker ps --filter "ancestor=$DOCKER_IMAGE_NAME:$DOCKER_IMAGE_VERSION" --format "{{.Names}}"
+  docker ps --filter "name=^idea-I[CU]$" --filter "name=^$DOCKER_CONTAINER_NAME$" --format "{{.Names}}"
+}|sort -u|xargs)"
+if [ ! "$RUNNING_CONTAINERS" == "" ]; then
+  echo IDEA Container is already started: "$RUNNING_CONTAINERS"
   exit -1;  
 fi
 
@@ -140,7 +146,7 @@ load_document() {
 }
 
 
-if [ ! "$(docker ps -a|grep -E "^.*$DOCKER_IMAGE_NAME\:$DOCKER_IMAGE_VERSION\s+.*$DOCKER_CONTAINER_NAME\s*"|wc -l|xargs)" == "0" ]; then
+if docker container inspect "$DOCKER_CONTAINER_NAME" > /dev/null 2>&1; then
   echo Start existed container: $DOCKER_CONTAINER_NAME
   xhost + > /dev/null
   docker start "$DOCKER_CONTAINER_NAME"
