@@ -277,7 +277,7 @@ else
   USRID=$(id -u $USER)
   GROUPID=$(id -g $USER)
       
-  if [ "$(docker images|grep "^$DOCKER_IMAGE_NAME\s*$DOCKER_IMAGE_VERSION\s.*$"|wc -l|xargs)" == "0" ]; then
+  if ! docker image inspect "$DOCKER_IMAGE_NAME:$DOCKER_IMAGE_VERSION" > /dev/null 2>&1; then
     
     if [ ! -f "Dockerfile" ]; then
 
