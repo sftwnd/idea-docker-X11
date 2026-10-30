@@ -17,7 +17,7 @@ The suggested script does the following:
 * builds the docker image from the [Dockerfile](Dockerfile) when it is missing or its inputs have changed
 * creates the container and launches IntelliJ IDEA on the XQuartz display
 
-The base image is _quay.io/centos/centos:stream10_. The image adds lksctp-tools, a JDK (21 by default), git, sudo, xauth, libXtst and xterm. IntelliJ IDEA, Maven and Gradle stay on the host and are mounted into the container.
+The base image is _quay.io/centos/centos:stream10_. The image adds lksctp-tools, iproute and procps-ng (`ss`, `ip`, `sysctl`), a JDK (25 by default), git, sudo, xauth, libXtst and xterm. IntelliJ IDEA, Maven and Gradle stay on the host and are mounted into the container.
 
 ## Usage
 
@@ -42,7 +42,7 @@ Settings are environment variables. The `IDEA_` prefix keeps host variables such
 | `IDEA_DEFAULT_CODE` | `IU` | edition when there is no local installation |
 | `IDEA_MAVEN_VERSION` | latest 3.x | Maven version |
 | `IDEA_GRADLE_VERSION` | latest release | Gradle version, `none` to skip Gradle, or a nightly build such as `9.10.0-20261030002218+0000` |
-| `IDEA_JDK_VERSION` | `21` | JDK in the image (`java-<version>-openjdk-devel`): 21 or 25 on CentOS Stream 10, 17 needs the Stream 9 base image; the documentation is downloaded for 17 and 21 |
+| `IDEA_JDK_VERSION` | `25` | JDK in the image (`java-<version>-openjdk-devel`): 21 or 25 on CentOS Stream 10, 17 needs the Stream 9 base image; the documentation is downloaded for 17, 21 and 25 |
 | `IDEA_BASE_IMAGE` | `quay.io/centos/centos:stream10` | base image |
 | `IDEA_IMAGE` | `idea:latest` | image name |
 | `IDEA_USER` | `idea` | container user; it gets the host UID and GID and passwordless sudo |
@@ -51,7 +51,11 @@ Settings are environment variables. The `IDEA_` prefix keeps host variables such
 | `IDEA_DISPLAY` | `host.docker.internal:0` | X display of the container (`$DISPLAY` on Linux) |
 | `IDEA_PORTS` | | published ports, e.g. `"8080:8080 5005:5005"` |
 | `IDEA_GITCONFIG` | `~/.gitconfig` | host git configuration included into the container one; empty to disable |
-| `IDEA_DOCKER_OPTIONS` | | extra options of `docker create` |
+| `IDEA_PRIVILEGED` | `true` | `true` or `false`: create the container with `--privileged`, see [SCTP settings](#sctp-settings) |
+| `IDEA_SCTP_AUTH_ENABLE` | `1` | `net.sctp.auth_enable` of the container: SCTP authentication ([RFC 4895](https://www.rfc-editor.org/rfc/rfc4895)); empty to keep the kernel default |
+| `IDEA_SCTP_UDP_PORT` | | `net.sctp.udp_port`: the UDP port to receive SCTP over UDP ([RFC 6951](https://www.rfc-editor.org/rfc/rfc6951)) on, e.g. `9899`; not set by default |
+| `IDEA_SCTP_ENCAP_PORT` | | `net.sctp.encap_port`: the UDP port to send SCTP over UDP to, e.g. `9899`; not set by default |
+| `IDEA_DOCKER_OPTIONS` | | extra options of `docker create`, passed after the options above |
 
 ## Container
 
@@ -68,11 +72,30 @@ Settings are environment variables. The `IDEA_` prefix keeps host variables such
 
 The entry point launches IntelliJ IDEA; `docker stop` shuts it down gracefully. The X server is accessed with the XQuartz cookie, so the `xhost` access control stays enabled. Docker Desktop forwards the SSH agent of macOS (the launchd one) into the container. On the first start the container gets `~/.gitconfig`, which includes the host configuration and replaces its credential helpers (macOS programs such as osxkeychain) with the git credential cache.
 
+## SCTP settings
+
+`IDEA_PRIVILEGED` and the `IDEA_SCTP_*` settings become options of `docker create`: `--privileged` and `--sysctl net.sctp.<name>=<value>`.
+
+* `net.sctp.*` are kernel parameters of the network namespace of the container, which Docker sets when it creates the container, so they work without `--privileged` too.
+* SCTP over UDP is off until the ports are set. Uncomment `IDEA_SCTP_UDP_PORT` and `IDEA_SCTP_ENCAP_PORT` in the settings of `idea.sh`, or export them: `IDEA_SCTP_UDP_PORT=9899 IDEA_SCTP_ENCAP_PORT=9899 ./idea.sh`. Once `encap_port` is set, new associations send their packets to that UDP port, so the peer must listen on it, and an application in the container that talks to itself needs `udp_port` equal to `encap_port`; otherwise the association is never established.
+* `--privileged` lets you change the parameters inside the container (`sudo sysctl -w net.sctp.hb_interval=5000`) and create network namespaces (`sudo ip netns add peer`) to test multihoming. It also gives the container root-level access to the Docker VM, where the projects, `~/.m2` and the SSH agent are mounted. With `IDEA_PRIVILEGED=false` SCTP, authentication and the parameters above keep working, but `sysctl -w` and `ip netns` do not.
+* The options are fixed when the container is created, and so is its image. `idea.sh` warns when an existing container differs from the settings; recreate it, the home volume is kept: `docker rm idea-IU && ./idea.sh iu`.
+
 ## Checking SCTP
 
 ```bash
 docker exec idea-IU checksctp   # SCTP supported
+docker exec idea-IU sysctl net.sctp.auth_enable net.sctp.udp_port net.sctp.encap_port
 ```
+
+## Tests
+
+```bash
+tests/options.sh   # the docker options built from the settings, with idea.sh --dry-run; builds and starts nothing
+tests/sctp.sh      # builds the image and checks SCTP in it: privileged and unprivileged containers, JDK, a loopback association
+```
+
+`tests/sctp.sh <image>` checks an existing image instead of building one, and `IDEA_JDK_VERSION` is the JDK it expects (25 by default). Docker is required, and no IDEA container may be running for `tests/options.sh`.
 
 ## Updating IntelliJ IDEA
 
