@@ -55,7 +55,7 @@ done
 : "${IDEA_MAVEN_VERSION:=}"              # latest Maven 3 if empty
 : "${IDEA_GRADLE_VERSION:=}"             # latest release if empty, "none" to skip, or a nightly build
 : "${IDEA_JDK_VERSION:=21}"
-: "${IDEA_BASE_IMAGE:=quay.io/centos/centos:stream9}"
+: "${IDEA_BASE_IMAGE:=quay.io/centos/centos:stream10}"
 : "${IDEA_IMAGE:=idea:latest}"
 : "${IDEA_USER:=idea}"
 : "${IDEA_CONTAINER:=}"                  # idea-<edition> if empty
