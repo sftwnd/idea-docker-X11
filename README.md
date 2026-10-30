@@ -8,6 +8,8 @@ To develop an application running using the SCTP protocol, Linux with pre-instal
 
 This script is designed to simplify development in Java using the SCTP protocol for macOS: IntelliJ IDEA runs in a Linux container and is shown on the macOS desktop.
 
+Changes are listed in the [releases](https://github.com/sftwnd/idea-docker-X11/releases).
+
 The suggested script does the following:
 * downloads the latest version of IntelliJ IDEA, if there is no local installation
 * downloads the latest versions of Maven 3 and Gradle and the JDK API documentation
@@ -66,6 +68,12 @@ Settings are environment variables. The `IDEA_` prefix keeps host variables such
 
 The entry point launches IntelliJ IDEA; `docker stop` shuts it down gracefully. The X server is accessed with the XQuartz cookie, so the `xhost` access control stays enabled. Docker Desktop forwards the SSH agent of macOS (the launchd one) into the container. On the first start the container gets `~/.gitconfig`, which includes the host configuration and replaces its credential helpers (macOS programs such as osxkeychain) with the git credential cache.
 
+## Checking SCTP
+
+```bash
+docker exec idea-IU checksctp   # SCTP supported
+```
+
 ## Updating IntelliJ IDEA
 
 The IDE settings live in the home volume, so the container can be recreated:
@@ -76,8 +84,41 @@ rm -rf idea-IU-<old build>   # or pin IDEA_RELEASE
 ./idea.sh iu
 ```
 
-[Script run example](https://youtu.be/NNeN_NgXZkg)
+## Upgrading from earlier versions
 
-[IDEA on Linux in Docker & X11 build example](https://youtu.be/eixzvCB1tlw)
+Settings are `IDEA_*` variables now:
+
+| Before | Now |
+|---|---|
+| `PROJECTS_PATH` | `IDEA_PROJECTS_PATH` |
+| `MAVEN_VERSION` | `IDEA_MAVEN_VERSION` |
+| `GRADLE_VERSION`, `GRADLE_BUILD` | `IDEA_GRADLE_VERSION` (`<version>-<build>` for a nightly build) |
+| `IDEA_VERSION`, `IDEA_BUILD` | `IDEA_RELEASE` (`<version>@<build>`) |
+| `DEFAULT_IDEA_CODE` | `IDEA_DEFAULT_CODE` |
+| `DOCKER_IMAGE_NAME`, `DOCKER_IMAGE_VERSION` | `IDEA_IMAGE` (`<name>:<tag>`) |
+| `DOCKER_CONTAINER_NAME` | `IDEA_CONTAINER` |
+| `DOCKER_CONTAINER_HOSTNAME` | `IDEA_HOSTNAME` |
+| `DISPLAY_HOST`, `DISPLAY_ID` (edited in the script) | `IDEA_DISPLAY` |
+
+* The image is built from the committed [Dockerfile](Dockerfile), which replaces the generated one, so `idea:latest` is rebuilt once when a new container is created.
+* `xhost +` is no longer used. XQuartz needs **Authenticate connections**, see [XQuartz.md](XQuartz.md).
+* An existing container is started as before and gets the XQuartz cookie, but its home directory is not a volume. To keep the IDE settings, copy the home directory into the volume before recreating the container:
+
+  ```bash
+  docker cp idea-IU:/home/idea/. - | docker run --rm -i --user 0 -v idea-IU-home:/home/idea --entrypoint tar idea:latest -xf - -C /home/idea
+  docker rm idea-IU
+  ./idea.sh iu
+  ```
+
+## Troubleshooting
+
+* **Can't connect to X11 window server.** XQuartz creates a new cookie on every start, and `idea.sh` copies the current one into the container. Start the container with `./idea.sh` rather than `docker start`. If the host name changed after XQuartz started, restart XQuartz. Check the security options in [XQuartz.md](XQuartz.md).
+* **IntelliJ IDEA is already running.** The container is running. Stop it with `docker stop idea-IU`.
+* **SSH keys are missing in the container.** Docker Desktop forwards only the macOS launchd agent. Load the keys into it with `SSH_AUTH_SOCK=$(launchctl getenv SSH_AUTH_SOCK) ssh-add ~/.ssh/<key>`.
+* **What will happen?** `./idea.sh --dry-run` shows the selected installation, the downloads and the docker commands without changing anything.
+
+[Script run example](https://youtu.be/NNeN_NgXZkg) (earlier version of the script)
+
+[IDEA on Linux in Docker & X11 build example](https://youtu.be/eixzvCB1tlw) (earlier version of the script)
 
 [XQuartz preferences](XQuartz.md)
