@@ -1,7 +1,11 @@
-apache*
-docs
-docs/**
-gradle*
-idea-I*
-ideaProjects
-Dockerfile
+# Distributions downloaded by idea.sh and its working files
+apache-maven-*
+gradle-*
+idea-I?-*
+idea-*.tar.gz
+ideaI?-*.tar.gz
+*.part
+*.tmp/
+docs/
+IdeaProjects/
+.xauth/

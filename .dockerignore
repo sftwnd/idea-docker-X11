@@ -1,0 +1,3 @@
+# The image is built from Dockerfile and entrypoint.sh only; the directory also holds gigabytes of distributions
+*
+!entrypoint.sh
