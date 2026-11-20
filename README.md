@@ -2,6 +2,8 @@
 
 _IntelliJ IDEA start for SCTP development on Linux/Docker_
 
+[Project page](https://sftwnd.github.io/idea-docker-X11/)
+
 Preinstallation requirements: curl, [Docker](https://www.docker.com/products/docker-desktop/), [XQuartz or other X11](https://www.xquartz.org/) configured as described in [XQuartz.md](XQuartz.md)
 
 To develop an application running using the SCTP protocol, Linux with pre-installed lksctp-tools is required. macOS has no native SCTP support.
