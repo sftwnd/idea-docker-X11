@@ -1,0 +1,444 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>IDEA in Docker X11</title>
+<meta name="description" content="IntelliJ IDEA for SCTP development on macOS: the IDE runs in a Linux container with lksctp-tools and is shown on the macOS desktop through XQuartz.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23111827'/%3E%3Cpath d='M8 16h16M18 10l6 6-6 6' fill='none' stroke='%2334d399' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+<style>
+  :root {
+    --bg: #f7f8fa;
+    --surface: #ffffff;
+    --surface-2: #eef1f5;
+    --text: #151a23;
+    --muted: #566072;
+    --border: #d9dee6;
+    --accent: #0a7d5a;
+    --accent-ink: #ffffff;
+    --accent-soft: #dff5ec;
+    --code-bg: #111827;
+    --code-text: #e5e7eb;
+    --code-muted: #8b95a7;
+    --code-accent: #34d399;
+    --shadow: 0 1px 2px rgba(16, 24, 40, .06), 0 8px 24px rgba(16, 24, 40, .06);
+    --mono: ui-monospace, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0d1117;
+      --surface: #151b24;
+      --surface-2: #1b2330;
+      --text: #e6eaf0;
+      --muted: #96a1b3;
+      --border: #263040;
+      --accent: #34d399;
+      --accent-ink: #06281d;
+      --accent-soft: #11332a;
+      --code-bg: #0a0e14;
+      --shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 8px 24px rgba(0, 0, 0, .35);
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0d1117;
+    --surface: #151b24;
+    --surface-2: #1b2330;
+    --text: #e6eaf0;
+    --muted: #96a1b3;
+    --border: #263040;
+    --accent: #34d399;
+    --accent-ink: #06281d;
+    --accent-soft: #11332a;
+    --code-bg: #0a0e14;
+    --shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 8px 24px rgba(0, 0, 0, .35);
+  }
+
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font: 16px/1.6 var(--sans);
+    -webkit-font-smoothing: antialiased;
+  }
+  a { color: var(--accent); text-underline-offset: 3px; }
+  a:hover { text-decoration-thickness: 2px; }
+  code, kbd { font-family: var(--mono); font-size: .92em; }
+  :not(pre) > code {
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    padding: .08em .35em;
+  }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 0 16px; }
+  section { padding: 64px 0; }
+  h1, h2, h3 { line-height: 1.2; margin: 0; letter-spacing: -.01em; }
+  h2 { font-size: clamp(1.6rem, 3.2vw, 2.1rem); margin-bottom: 12px; }
+  h3 { font-size: 1.05rem; margin-bottom: 6px; }
+  .lead { color: var(--muted); font-size: 1.1rem; max-width: 62ch; margin: 0 0 32px; }
+  .eyebrow {
+    font: 600 .8rem/1 var(--mono);
+    text-transform: uppercase;
+    letter-spacing: .08em;
+    color: var(--accent);
+    margin-bottom: 14px;
+  }
+
+  /* header */
+  header.top {
+    position: sticky; top: 0; z-index: 10;
+    background: color-mix(in srgb, var(--bg) 88%, transparent);
+    backdrop-filter: blur(8px);
+    border-bottom: 1px solid var(--border);
+  }
+  .top .wrap { display: flex; align-items: center; gap: 20px; height: 56px; }
+  .brand { font: 700 1rem var(--mono); color: var(--text); text-decoration: none; margin-right: auto; white-space: nowrap; }
+  .brand span { color: var(--accent); }
+  .top nav { display: flex; gap: 18px; }
+  .top nav a { color: var(--muted); text-decoration: none; font-size: .92rem; }
+  .top nav a:hover { color: var(--text); }
+  .gh {
+    border: 1px solid var(--border); border-radius: 8px; padding: 6px 12px;
+    font-size: .9rem; color: var(--text); text-decoration: none; background: var(--surface);
+  }
+  .gh:hover { border-color: var(--accent); }
+  @media (max-width: 720px) { .top nav { display: none; } }
+
+  /* hero */
+  .hero { padding: 72px 0 56px; }
+  .hero h1 { font-size: clamp(2.2rem, 6vw, 3.8rem); max-width: 16ch; }
+  .hero h1 em { font-style: normal; color: var(--accent); }
+  .hero p.sub { font-size: 1.2rem; color: var(--muted); max-width: 56ch; margin: 20px 0 28px; }
+  .hero .actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 28px; }
+  .btn {
+    display: inline-block; padding: 11px 20px; border-radius: 9px; font-weight: 600;
+    text-decoration: none; border: 1px solid var(--border); color: var(--text); background: var(--surface);
+  }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+  .btn:hover { filter: brightness(1.06); }
+
+  /* terminal / code */
+  .term {
+    position: relative;
+    background: var(--code-bg); color: var(--code-text);
+    border-radius: 12px; box-shadow: var(--shadow);
+    font: .92rem/1.7 var(--mono);
+    overflow: hidden;
+  }
+  .term .bar {
+    display: flex; align-items: center; gap: 7px; padding: 9px 14px;
+    border-bottom: 1px solid rgba(255, 255, 255, .08);
+    color: var(--code-muted); font-size: .78rem;
+  }
+  .term .bar i { width: 10px; height: 10px; border-radius: 50%; background: #3b4352; display: inline-block; }
+  .term .bar span { margin-left: 6px; }
+  .term pre { margin: 0; padding: 14px 16px; overflow-x: auto; }
+  .term .c { color: var(--code-muted); }
+  .term .p { color: var(--code-accent); user-select: none; }
+  .copy {
+    position: absolute; top: 5px; right: 8px;
+    font: 600 .75rem var(--sans); color: var(--code-text);
+    background: rgba(255, 255, 255, .08); border: 1px solid rgba(255, 255, 255, .14);
+    border-radius: 6px; padding: 4px 10px; cursor: pointer;
+  }
+  .copy:hover { background: rgba(255, 255, 255, .16); }
+  .hero .term { max-width: 640px; }
+
+  /* diagram */
+  .diagram {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 14px;
+    padding: 16px; box-shadow: var(--shadow);
+  }
+  .diagram svg { display: block; width: 100%; height: auto; }
+  .diagram text { font-family: var(--sans); fill: var(--text); }
+  .diagram .mono { font-family: var(--mono); }
+  .diagram .dim { fill: var(--muted); }
+  .diagram .box { fill: var(--surface-2); stroke: var(--border); stroke-width: 1.5; }
+  .diagram .hl { fill: var(--accent-soft); stroke: var(--accent); stroke-width: 1.5; }
+  .diagram .line { stroke: var(--accent); stroke-width: 2; fill: none; }
+  .diagram .dash { stroke: var(--muted); stroke-width: 1.5; stroke-dasharray: 5 5; fill: none; }
+  .diagram .arrow { fill: var(--accent); }
+
+  .split { display: grid; grid-template-columns: 1fr 1.25fr; gap: 40px; align-items: center; }
+  @media (max-width: 860px) { .split { grid-template-columns: 1fr; gap: 28px; } }
+  .split p { color: var(--muted); }
+  .split p strong { color: var(--text); }
+
+  /* cards */
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 16px; }
+  .card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 20px;
+  }
+  .card p { margin: 0; color: var(--muted); font-size: .95rem; }
+  .card .tag {
+    display: inline-block; font: 600 .72rem var(--mono); color: var(--accent);
+    background: var(--accent-soft); border-radius: 5px; padding: 2px 7px; margin-bottom: 10px;
+  }
+
+  /* steps */
+  .steps { counter-reset: s; list-style: none; padding: 0; margin: 0; display: grid; gap: 14px; }
+  .steps li {
+    counter-increment: s; position: relative; padding: 16px 18px 16px 62px;
+    background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+  }
+  .steps li::before {
+    content: counter(s); position: absolute; left: 18px; top: 16px;
+    width: 30px; height: 30px; border-radius: 50%;
+    background: var(--accent); color: var(--accent-ink);
+    display: grid; place-items: center; font: 700 .9rem var(--mono);
+  }
+  .steps li p { margin: 2px 0 0; color: var(--muted); font-size: .95rem; }
+
+  /* quick start */
+  .qs { display: grid; gap: 22px; }
+  .qs .item h3 { display: flex; align-items: baseline; gap: 10px; }
+  .qs .item h3 b { font: 700 .85rem var(--mono); color: var(--accent); }
+  .qs .item p { color: var(--muted); margin: 0 0 10px; }
+
+  /* table */
+  .tablewrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); }
+  table { border-collapse: collapse; width: 100%; font-size: .93rem; min-width: 560px; }
+  th, td { text-align: left; padding: 11px 16px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  th { color: var(--muted); font-weight: 600; font-size: .8rem; text-transform: uppercase; letter-spacing: .05em; background: var(--surface-2); }
+  tr:last-child td { border-bottom: 0; }
+  td:last-child { color: var(--muted); }
+
+  .note {
+    border-left: 3px solid var(--accent); background: var(--accent-soft);
+    padding: 12px 16px; border-radius: 0 10px 10px 0; margin-top: 20px; font-size: .95rem;
+  }
+
+  .alt { background: var(--surface-2); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+  .alt .card, .alt .steps li, .alt .tablewrap { background: var(--surface); }
+
+  footer { padding: 40px 0 56px; color: var(--muted); font-size: .92rem; }
+  footer .wrap { display: flex; flex-wrap: wrap; gap: 8px 24px; justify-content: space-between; }
+  footer a { color: var(--muted); }
+  footer a:hover { color: var(--accent); }
+  footer .links { display: flex; flex-wrap: wrap; gap: 8px 20px; }
+
+  @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="wrap">
+    <a class="brand" href="#top">idea<span>@</span>docker-x11</a>
+    <nav aria-label="Sections">
+      <a href="#why">Why</a>
+      <a href="#how">How it works</a>
+      <a href="#features">Features</a>
+      <a href="#start">Quick start</a>
+      <a href="#settings">Settings</a>
+    </nav>
+    <a class="gh" href="https://github.com/sftwnd/idea-docker-X11">GitHub</a>
+  </div>
+</header>
+
+<main id="top">
+
+<section class="hero">
+  <div class="wrap">
+    <div class="eyebrow">IntelliJ IDEA &middot; SCTP &middot; macOS</div>
+    <h1>SCTP development on a Mac, <em>for real</em>.</h1>
+    <p class="sub">macOS has no SCTP. This script runs IntelliJ IDEA in a Linux container with <code>lksctp-tools</code> and a JDK, and shows its window on your macOS desktop through XQuartz.</p>
+
+    <div class="term" role="group" aria-label="Start command">
+      <div class="bar"><i></i><i></i><i></i><span>Terminal</span></div>
+      <button class="copy" type="button" data-copy="git clone https://github.com/sftwnd/idea-docker-X11.git && cd idea-docker-X11 && ./idea.sh">Copy</button>
+      <pre><span class="p">$</span> git clone https://github.com/sftwnd/idea-docker-X11.git
+<span class="p">$</span> cd idea-docker-X11
+<span class="p">$</span> ./idea.sh <span class="c">   # downloads IDEA, builds the image, starts the IDE</span></pre>
+    </div>
+
+    <div class="actions">
+      <a class="btn primary" href="#start">Quick start</a>
+      <a class="btn" href="https://github.com/sftwnd/idea-docker-X11#readme">Read the README</a>
+      <a class="btn" href="https://youtu.be/eixzvCB1tlw">Watch a demo</a>
+    </div>
+  </div>
+</section>
+
+<section id="why" class="alt">
+  <div class="wrap split">
+    <div>
+      <div class="eyebrow">The problem</div>
+      <h2>Linux for the protocol, macOS for everything else</h2>
+      <p>To develop a Java application that talks <strong>SCTP</strong> you need Linux with <code>lksctp-tools</code>. The Mac you work on has no native SCTP support.</p>
+      <p>A full Linux desktop in a virtual machine is heavy. Here only IntelliJ IDEA lives in the container, and the <strong>X11 window is drawn by XQuartz</strong> on the macOS desktop. You edit, build and debug against a real SCTP stack, and your projects, Maven and Gradle stay on the host.</p>
+    </div>
+
+    <div class="diagram">
+      <svg viewBox="0 0 560 340" role="img" aria-labelledby="dg-t dg-d">
+        <title id="dg-t">Architecture</title>
+        <desc id="dg-d">IntelliJ IDEA runs in a Docker container and draws its window on XQuartz on macOS over TCP. The IDE, Maven, Gradle and projects are mounted from the host.</desc>
+        <defs>
+          <marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+            <path d="M0 0L10 5L0 10z" class="arrow"/>
+          </marker>
+        </defs>
+
+        <rect class="box" x="10" y="10" width="540" height="320" rx="14"/>
+        <text x="28" y="36" font-size="13" font-weight="700">macOS host</text>
+
+        <rect class="hl" x="28" y="56" width="190" height="86" rx="10"/>
+        <text x="123" y="90" font-size="15" font-weight="700" text-anchor="middle">XQuartz</text>
+        <text x="123" y="112" font-size="12" text-anchor="middle" class="dim mono">DISPLAY :0</text>
+        <text x="123" y="128" font-size="11" text-anchor="middle" class="dim">cookie authentication</text>
+
+        <rect class="box" x="28" y="210" width="190" height="104" rx="10"/>
+        <text x="123" y="236" font-size="13" font-weight="700" text-anchor="middle">On the host disk</text>
+        <text x="123" y="258" font-size="12" text-anchor="middle" class="dim mono">idea-IU-&lt;build&gt;</text>
+        <text x="123" y="276" font-size="12" text-anchor="middle" class="dim mono">maven &middot; gradle</text>
+        <text x="123" y="294" font-size="12" text-anchor="middle" class="dim mono">~/IdeaProjects</text>
+
+        <rect class="hl" x="318" y="56" width="214" height="258" rx="12"/>
+        <text x="425" y="82" font-size="13" font-weight="700" text-anchor="middle">Docker container</text>
+        <text x="425" y="100" font-size="11" text-anchor="middle" class="dim mono">CentOS Stream 10</text>
+
+        <rect class="box" x="338" y="120" width="174" height="44" rx="8"/>
+        <text x="425" y="148" font-size="14" font-weight="700" text-anchor="middle">IntelliJ IDEA</text>
+
+        <rect class="box" x="338" y="176" width="174" height="44" rx="8"/>
+        <text x="425" y="203" font-size="11" text-anchor="middle" class="mono">JDK 25 &middot; Maven &middot; Gradle</text>
+
+        <rect class="box" x="338" y="232" width="174" height="64" rx="8"/>
+        <text x="425" y="257" font-size="13" font-weight="700" text-anchor="middle">Linux SCTP</text>
+        <text x="425" y="277" font-size="12" text-anchor="middle" class="dim mono">lksctp-tools</text>
+
+        <path class="line" d="M318 98 H218" marker-end="url(#ah)"/>
+        <text x="268" y="88" font-size="11" text-anchor="middle" class="dim mono">X11 / TCP</text>
+
+        <path class="dash" d="M123 142 V210"/>
+        <path class="dash" d="M218 262 H318" marker-end="url(#ah)"/>
+        <text x="268" y="252" font-size="11" text-anchor="middle" class="dim">mounted</text>
+      </svg>
+    </div>
+  </div>
+</section>
+
+<section id="how">
+  <div class="wrap">
+    <div class="eyebrow">What the script does</div>
+    <h2>One command, from nothing to a running IDE</h2>
+    <p class="lead">Run <code>./idea.sh</code>. It only does the work that is still missing, and <code>--dry-run</code> shows the plan without changing anything.</p>
+    <ol class="steps">
+      <li><h3>Downloads what is not there yet</h3><p>The latest IntelliJ IDEA when there is no local installation, the latest Maven 3 and Gradle, and the JDK API documentation.</p></li>
+      <li><h3>Verifies the downloads</h3><p>The published checksums are checked before anything is unpacked.</p></li>
+      <li><h3>Builds the image</h3><p>From the committed <code>Dockerfile</code>, only when the image is missing or its inputs have changed.</p></li>
+      <li><h3>Creates the container</h3><p>With the IDE, Maven, Gradle and your projects mounted from the host, and a home volume that keeps the IDE settings.</p></li>
+      <li><h3>Starts IntelliJ IDEA</h3><p>On the XQuartz display. <code>docker stop</code> shuts the IDE down gracefully.</p></li>
+    </ol>
+  </div>
+</section>
+
+<section id="features" class="alt">
+  <div class="wrap">
+    <div class="eyebrow">Features</div>
+    <h2>Built for SCTP work, not just for a Linux shell</h2>
+    <p class="lead">The container is configured through the options of <code>docker create</code>, so each behaviour below is a setting rather than a manual step.</p>
+    <div class="grid">
+      <div class="card"><span class="tag">SCTP</span><h3>Working SCTP stack</h3><p><code>lksctp-tools</code>, <code>iproute</code> and <code>procps-ng</code> in the image. Check it with <code>docker exec idea-IU checksctp</code>.</p></div>
+      <div class="card"><span class="tag">RFC 4895</span><h3>SCTP authentication</h3><p><code>net.sctp.auth_enable</code> is on by default, so authenticated chunks work out of the box.</p></div>
+      <div class="card"><span class="tag">RFC 6951</span><h3>SCTP over UDP</h3><p>Set <code>IDEA_SCTP_UDP_PORT</code> and <code>IDEA_SCTP_ENCAP_PORT</code> to test the UDP encapsulation.</p></div>
+      <div class="card"><span class="tag">multihoming</span><h3>Network namespaces</h3><p>In a privileged container <code>ip netns add peer</code> gives you a second host to test multihoming against.</p></div>
+      <div class="card"><span class="tag">JDK</span><h3>JDK 25 by default</h3><p>Choose 21 or 25 with <code>IDEA_JDK_VERSION</code>. The matching API documentation is downloaded for you.</p></div>
+      <div class="card"><span class="tag">host</span><h3>Your tools stay on the Mac</h3><p>IDEA, Maven, Gradle, <code>~/.m2</code> and your projects are mounted, so the image stays small and updates are a download.</p></div>
+      <div class="card"><span class="tag">safety</span><h3>Authenticated X11</h3><p>The XQuartz cookie is copied in on every start, so <code>xhost +</code> is not needed. See <a href="https://github.com/sftwnd/idea-docker-X11/blob/master/XQuartz.md">XQuartz.md</a>.</p></div>
+      <div class="card"><span class="tag">git &amp; ssh</span><h3>Credentials carried over</h3><p>Your <code>~/.gitconfig</code> is included, and Docker Desktop forwards the macOS SSH agent into the container.</p></div>
+      <div class="card"><span class="tag">tests</span><h3>Checked end to end</h3><p><code>tests/sctp.sh</code> builds the image and runs a loopback SCTP association in privileged and unprivileged containers.</p></div>
+    </div>
+  </div>
+</section>
+
+<section id="start">
+  <div class="wrap">
+    <div class="eyebrow">Quick start</div>
+    <h2>Three steps</h2>
+    <p class="lead">You need <code>curl</code>, Docker and XQuartz.</p>
+    <div class="qs">
+      <div class="item">
+        <h3><b>01</b> Set up XQuartz</h3>
+        <p>On the <strong>Security</strong> tab enable <em>Authenticate connections</em> and <em>Allow connections from network clients</em>, then restart XQuartz. The <a href="https://github.com/sftwnd/idea-docker-X11/blob/master/XQuartz.md">XQuartz guide</a> has screenshots of every tab.</p>
+      </div>
+      <div class="item">
+        <h3><b>02</b> Start the IDE</h3>
+        <div class="term">
+          <div class="bar"><i></i><i></i><i></i><span>Terminal</span></div>
+          <button class="copy" type="button" data-copy="./idea.sh --dry-run&#10;./idea.sh">Copy</button>
+<pre><span class="p">$</span> ./idea.sh --dry-run <span class="c"># what would be downloaded and which docker commands would run</span>
+<span class="p">$</span> ./idea.sh           <span class="c"># the newest local installation, or the latest release</span></pre>
+        </div>
+      </div>
+      <div class="item">
+        <h3><b>03</b> Check SCTP</h3>
+        <div class="term">
+          <div class="bar"><i></i><i></i><i></i><span>Terminal</span></div>
+          <button class="copy" type="button" data-copy="docker exec idea-IU checksctp&#10;docker exec idea-IU sysctl net.sctp.auth_enable net.sctp.udp_port net.sctp.encap_port">Copy</button>
+<pre><span class="p">$</span> docker exec idea-IU checksctp
+<span class="p">$</span> docker exec idea-IU sysctl net.sctp.auth_enable net.sctp.udp_port net.sctp.encap_port</pre>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="settings" class="alt">
+  <div class="wrap">
+    <div class="eyebrow">Settings</div>
+    <h2>Environment variables with an <code>IDEA_</code> prefix</h2>
+    <p class="lead">Export them or put them in front of the command, for example <code>IDEA_JDK_VERSION=21 ./idea.sh</code>. The full list is in the README.</p>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Variable</th><th>Default</th><th>Meaning</th></tr></thead>
+        <tbody>
+          <tr><td><code>IDEA_PROJECTS_PATH</code></td><td><code>./IdeaProjects</code></td><td>Host directory mounted as <code>~/IdeaProjects</code></td></tr>
+          <tr><td><code>IDEA_RELEASE</code></td><td>latest</td><td>Pinned IDEA release, <code>&lt;version&gt;@&lt;build&gt;</code></td></tr>
+          <tr><td><code>IDEA_JDK_VERSION</code></td><td><code>25</code></td><td>JDK in the image, 21 or 25 on CentOS Stream 10</td></tr>
+          <tr><td><code>IDEA_PORTS</code></td><td>none</td><td>Published ports, e.g. <code>"8080:8080 5005:5005"</code></td></tr>
+          <tr><td><code>IDEA_PRIVILEGED</code></td><td><code>true</code></td><td>Run with <code>--privileged</code> to change <code>sysctl</code> and create network namespaces</td></tr>
+          <tr><td><code>IDEA_SCTP_AUTH_ENABLE</code></td><td><code>1</code></td><td><code>net.sctp.auth_enable</code>, SCTP authentication</td></tr>
+          <tr><td><code>IDEA_SCTP_UDP_PORT</code></td><td>none</td><td><code>net.sctp.udp_port</code>, receive SCTP over UDP on this port</td></tr>
+          <tr><td><code>IDEA_SCTP_ENCAP_PORT</code></td><td>none</td><td><code>net.sctp.encap_port</code>, send SCTP over UDP to this port</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="note"><strong>Good to know.</strong> The options are fixed when the container is created. <code>idea.sh</code> warns when an existing container differs from the settings; recreate it with <code>docker rm idea-IU &amp;&amp; ./idea.sh iu</code>, the home volume is kept.</div>
+  </div>
+</section>
+
+</main>
+
+<footer>
+  <div class="wrap">
+    <div>idea-docker-X11 &middot; IntelliJ IDEA for SCTP development on Linux/Docker</div>
+    <div class="links">
+      <a href="https://github.com/sftwnd/idea-docker-X11">Repository</a>
+      <a href="https://github.com/sftwnd/idea-docker-X11/releases">Releases</a>
+      <a href="https://github.com/sftwnd/idea-docker-X11/blob/master/LICENSE">License</a>
+      <a href="https://youtu.be/NNeN_NgXZkg">Script run example</a>
+      <a href="https://youtu.be/eixzvCB1tlw">Build example</a>
+    </div>
+  </div>
+</footer>
+
+<script>
+  document.querySelectorAll('.copy').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var text = btn.getAttribute('data-copy');
+      var done = function () {
+        var old = btn.textContent;
+        btn.textContent = 'Copied';
+        setTimeout(function () { btn.textContent = old; }, 1400);
+      };
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(done, function () {});
+      }
+    });
+  });
+</script>
+</body>
+</html>
