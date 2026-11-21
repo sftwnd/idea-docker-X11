@@ -1,0 +1,79 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="640" viewBox="0 0 1280 640">
+  <defs>
+    <style>
+      .sans { font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Helvetica Neue", Arial, sans-serif; }
+      .mono { font-family: "SF Mono", ui-monospace, Menlo, Consolas, "Liberation Mono", monospace; }
+      .text { fill: #e6eaf0; }
+      .muted { fill: #96a1b3; }
+      .accent { fill: #34d399; }
+      .box { fill: #1b2330; stroke: #2c3748; stroke-width: 1.5; }
+      .hl { fill: #11332a; stroke: #34d399; stroke-width: 2; }
+    </style>
+    <radialGradient id="glow" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse"
+                    gradientTransform="translate(980 120) scale(620 520)">
+      <stop offset="0" stop-color="#34d399" stop-opacity=".10"/>
+      <stop offset="1" stop-color="#34d399" stop-opacity="0"/>
+    </radialGradient>
+    <pattern id="dots" width="28" height="28" patternUnits="userSpaceOnUse">
+      <circle cx="2" cy="2" r="1.2" fill="#ffffff" fill-opacity=".045"/>
+    </pattern>
+    <marker id="ah" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M0 0L10 5L0 10z" fill="#34d399"/>
+    </marker>
+  </defs>
+
+  <!-- background -->
+  <rect width="1280" height="640" fill="#0d1117"/>
+  <rect width="1280" height="640" fill="url(#dots)"/>
+  <rect width="1280" height="640" fill="url(#glow)"/>
+  <rect width="1280" height="6" fill="#34d399"/>
+
+  <!-- brand -->
+  <rect x="72" y="66" width="40" height="40" rx="9" fill="#111827" stroke="#2c3748" stroke-width="1.5"/>
+  <path d="M82 86h20M94 78l8 8-8 8" fill="none" stroke="#34d399" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="128" y="96" class="mono text" font-size="26" font-weight="700">idea<tspan class="accent">@</tspan>docker-x11</text>
+
+  <!-- headline -->
+  <text x="72" y="176" class="mono accent" font-size="18" font-weight="600" letter-spacing="2.4">INTELLIJ IDEA · SCTP · MACOS</text>
+  <text x="72" y="252" class="sans text" font-size="62" font-weight="800" letter-spacing="-1.2">SCTP development</text>
+  <text x="72" y="324" class="sans text" font-size="62" font-weight="800" letter-spacing="-1.2">on a Mac, <tspan class="accent">for real.</tspan></text>
+  <text x="72" y="384" class="sans muted" font-size="23">IntelliJ IDEA in a Linux container with lksctp-tools,</text>
+  <text x="72" y="416" class="sans muted" font-size="23">shown on the macOS desktop through XQuartz.</text>
+
+  <!-- terminal -->
+  <rect x="72" y="458" width="568" height="96" rx="12" fill="#0a0e14" stroke="#263040" stroke-width="1.5"/>
+  <line x1="72" y1="490" x2="640" y2="490" stroke="#ffffff" stroke-opacity=".08"/>
+  <circle cx="94" cy="474" r="5.5" fill="#3b4352"/>
+  <circle cx="112" cy="474" r="5.5" fill="#3b4352"/>
+  <circle cx="130" cy="474" r="5.5" fill="#3b4352"/>
+  <text x="148" y="479" class="sans" font-size="13" fill="#8b95a7">Terminal</text>
+  <text x="94" y="531" class="mono" font-size="21"><tspan class="accent">$</tspan><tspan fill="#e5e7eb"> ./idea.sh</tspan><tspan fill="#8b95a7" dx="26"># one command, a running IDE</tspan></text>
+
+  <!-- footer url -->
+  <text x="72" y="600" class="mono muted" font-size="17">sftwnd.github.io/idea-docker-X11</text>
+
+  <!-- architecture -->
+  <rect x="772" y="64" width="436" height="512" rx="18" fill="#151b24" stroke="#263040" stroke-width="1.5"/>
+  <text x="800" y="102" class="sans muted" font-size="16" font-weight="700" letter-spacing=".4">macOS host</text>
+
+  <rect class="hl" x="804" y="124" width="372" height="84" rx="12"/>
+  <text x="990" y="164" class="sans text" font-size="26" font-weight="700" text-anchor="middle">XQuartz</text>
+  <text x="990" y="192" class="mono muted" font-size="15" text-anchor="middle">DISPLAY :0 · cookie auth</text>
+
+  <path d="M990 284 V214" stroke="#34d399" stroke-width="2.5" fill="none" marker-end="url(#ah)"/>
+  <text x="1006" y="254" class="mono muted" font-size="15">X11 / TCP</text>
+
+  <rect class="hl" x="804" y="284" width="372" height="264" rx="14"/>
+  <text x="990" y="316" class="sans text" font-size="18" font-weight="700" text-anchor="middle">Docker container</text>
+  <text x="990" y="338" class="mono muted" font-size="13" text-anchor="middle">CentOS Stream 10</text>
+
+  <rect class="box" x="828" y="356" width="324" height="52" rx="10"/>
+  <text x="990" y="389" class="sans text" font-size="21" font-weight="700" text-anchor="middle">IntelliJ IDEA</text>
+
+  <rect class="box" x="828" y="418" width="324" height="46" rx="10"/>
+  <text x="990" y="446" class="mono text" font-size="15" text-anchor="middle">JDK 25 · Maven · Gradle</text>
+
+  <rect class="box" x="828" y="474" width="324" height="58" rx="10"/>
+  <text x="990" y="499" class="sans text" font-size="17" font-weight="700" text-anchor="middle">Linux SCTP</text>
+  <text x="990" y="520" class="mono accent" font-size="14" text-anchor="middle">lksctp-tools</text>
+</svg>
