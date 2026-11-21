@@ -1,11 +1,13 @@
-# Distributions downloaded by idea.sh and its working files
+# Distributions downloaded by idea.sh: unpacked directories and their archives
 apache-maven-*
 gradle-*
-idea-I?-*
-idea-*.tar.gz
+idea-*
 ideaI?-*.tar.gz
+# JDK API documentation downloaded by idea.sh
+docs/
+# Interrupted downloads and unfinished unpacking
 *.part
 *.tmp/
-docs/
+# Working files
 IdeaProjects/
 .xauth/
